@@ -1,0 +1,28 @@
+name: check
+on: pull_request
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Type-check shared/ and the sample data
+        run: npx -y -p typescript@5.5.4 tsc -p shared && node shared/sample.check.ts
+
+      - name: Type-check hooks/
+        run: |
+          # The 'claude-code' types are generated locally by Claude Code and not committed.
+          if [ -f .claude-plugin/types/tsconfig.json ]; then npx -y -p typescript@5.5.4 tsc --noEmit -p .
+          else echo "::notice::Skipped hooks/: .claude-plugin/types is not in the repo"; fi
+
+      - name: Type-check web/
+        if: hashFiles('web/package.json') != ''
+        working-directory: web
+        run: npm install && npx tsc --noEmit
+
+      - name: Apply migrations and test pull_card()
+        run: npm i --no-save @electric-sql/pglite@0.2.17 && node supabase/tests/migrations.test.mjs

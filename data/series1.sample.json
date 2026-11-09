@@ -1,0 +1,17 @@
+[
+  { "id": "s1-harrison-barnes", "number": 120, "name": "Harrison Barnes", "tier": "common",
+    "position": "SF", "teams": ["DAL", "SAC"], "season": "2018-19", "games": 77,
+    "pts": 16.4, "reb": 4.7, "ast": 1.6, "stl": 0.6, "blk": 0.1, "tov": 1.3, "fp": 25.2 },
+  { "id": "s1-devin-booker", "number": 40, "name": "Devin Booker", "tier": "middle",
+    "position": "SG", "teams": ["PHX"], "season": "2022-23", "games": 53,
+    "pts": 27.8, "reb": 4.5, "ast": 5.5, "stl": 1.0, "blk": 0.3, "tov": 2.7, "fp": 42.7 },
+  { "id": "s1-stephen-curry", "number": 23, "name": "Stephen Curry", "tier": "top",
+    "position": "PG", "teams": ["GSW"], "season": "2015-16", "games": 79,
+    "pts": 30.1, "reb": 5.4, "ast": 6.7, "stl": 2.1, "blk": 0.2, "tov": 3.3, "fp": 50.2 },
+  { "id": "s1-legend-lebron-james", "number": 151, "name": "LeBron James", "tier": "legend",
+    "position": "SF", "teams": ["CLE"], "game": "2016 Finals G7 at GSW", "date": "2016-06-19",
+    "pts": 27, "reb": 11, "ast": 11, "stl": 2, "blk": 3, "tov": 5, "fp": 66.7 },
+  { "id": "s1-legend-stephen-curry", "number": 152, "name": "Stephen Curry", "tier": "legend",
+    "position": "PG", "teams": ["GSW"], "game": "Regular season at OKC", "date": "2016-02-27",
+    "pts": 46, "reb": 6, "ast": 6, "stl": 2, "blk": 0, "tov": 4, "fp": 64.2 }
+]

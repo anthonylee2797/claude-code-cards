@@ -39,3 +39,6 @@ next-env.d.ts
 
 # node
 node_modules/
+
+# Basketball-Reference page cache for data/build.mjs
+data/.cache/

@@ -1,6 +1,0 @@
-{
-  "version": 3,
-  "sources": [],
-  "sections": [
-    {"offset": {"line": 4, "column": 0}, "map": {"version":3,"sources":["file:///C:/coding/claude-code-cards/.claude/worktrees/series1-web-ccd72e/web/app/not-found.tsx"],"sourcesContent":["import Link from 'next/link'\n\nexport default function NotFound() {\n  return (\n    <>\n      <h1>No collection found</h1>\n      <p>Check the public_id (like hoop-7k2f) or GitHub login. <Link href=\"/\">See all cards</Link></p>\n    </>\n  )\n}\n"],"names":[],"mappings":";;;;;AAAA;;;AAEe,SAAS;IACtB,qBACE;;0BACE,qPAAC;0BAAG;;;;;;0BACJ,qPAAC;;oBAAE;kCAAsD,qPAAC,iMAAI;wBAAC,MAAK;kCAAI;;;;;;;;;;;;;;AAG9E"}}]
-}

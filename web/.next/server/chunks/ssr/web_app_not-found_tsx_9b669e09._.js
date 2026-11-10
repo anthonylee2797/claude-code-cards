@@ -1,3 +1,0 @@
-module.exports=[83857,a=>{"use strict";var b=a.i(80516),c=a.i(3184);function d(){return(0,b.jsxs)(b.Fragment,{children:[(0,b.jsx)("h1",{children:"No collection found"}),(0,b.jsxs)("p",{children:["Check the public_id (like hoop-7k2f) or GitHub login. ",(0,b.jsx)(c.default,{href:"/",children:"See all cards"})]})]})}a.s(["default",()=>d])}];
-
-//# sourceMappingURL=web_app_not-found_tsx_9b669e09._.js.map

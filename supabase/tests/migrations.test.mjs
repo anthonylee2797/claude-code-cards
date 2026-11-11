@@ -1,9 +1,9 @@
 import { PGlite } from '@electric-sql/pglite'
 import { readFileSync, readdirSync } from 'node:fs'
+import { loadCards } from '../seed.mjs'
 // Runs every migration against an in-memory Postgres with a stub of Supabase's auth schema.
 // Run: npm i --no-save @electric-sql/pglite@0.2.17 && node supabase/tests/migrations.test.mjs
 const root = new URL('../../', import.meta.url)
-const sample = new URL('data/series1.sample.json', root)
 const db = new PGlite()
 // Stub of what Supabase provides.
 await db.exec(`
@@ -16,12 +16,16 @@ await db.exec(`
   alter default privileges in schema public grant all on tables to anon, authenticated;
   alter default privileges in schema public grant all on functions to anon, authenticated;`)
 for (const f of readdirSync(new URL('supabase/migrations/', root)).sort()) await db.exec(readFileSync(new URL('supabase/migrations/' + f, root), 'utf8'))
-const cards = JSON.parse(readFileSync(sample, 'utf8'))
-for (const c of cards) {
-  const cols = Object.keys(c)
-  await db.query(`insert into public.cards (${cols.join(',')}) values (${cols.map((_, i) => '$' + (i + 1))})`, Object.values(c))
-}
+// Same cards and upsert-by-id as supabase/seed.mjs (series1.json once it lands, else the sample).
+const { file, cards } = loadCards()
+const columns = [...new Set(cards.flatMap(Object.keys))]
+const seed = () => Promise.all(cards.map(c => db.query(
+  `insert into public.cards (${columns}) values (${columns.map((_, i) => '$' + (i + 1))})
+   on conflict (id) do update set ${columns.map(k => `${k} = excluded.${k}`)}`, columns.map(k => c[k] ?? null))))
 const assert = (ok, msg) => { if (!ok) { console.error('FAIL', msg); process.exit(1) } }
+await seed()
+await seed()
+assert((await db.query(`select count(*)::int n from public.cards`)).rows[0].n === cards.length, 're-seed is idempotent')
 const uid = '00000000-0000-0000-0000-000000000001'
 await db.query(`insert into auth.users values ($1)`, [uid])
 const prof = (await db.query(`select public_id from public.profiles`)).rows
@@ -47,4 +51,4 @@ for (const sql of [`insert into public.pulls values ('${uid}', 's1-stephen-curry
 await db.exec(`set role anon`)
 assert((await db.query(`select count(*)::int n from public.pulls`)).rows[0].n === cards.length, 'anon can read')
 assert(await db.query(`select public.pull_card()`).then(() => false, () => true), 'anon cannot pull')
-console.log('ok: profile, 5 distinct pulls, set_complete, no client writes, anon read-only')
+console.log(`ok (${file}): profile, idempotent seed, ${cards.length} distinct pulls, set_complete, no client writes, anon read-only`)

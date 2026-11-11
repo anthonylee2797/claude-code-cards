@@ -1,85 +1,127 @@
 import type { EngineInterface, Register } from 'claude-code'
 
-const RAINBOW = ['red', '#ff8c00', 'yellow', 'green', 'cyan', 'blue', 'magenta']
-const TITLE = 'CLAUDE CODE CARDS'
-const TIERS = [
-  { name: 'Silver', color: 'gray' },
-  { name: 'Gold', color: 'yellow' },
-  { name: 'All-Star', color: 'cyan' },
-  { name: 'All-Time', color: 'magenta' },
-]
-const SHIMMER_FRAMES = 25
+import type { Card, PullResult, Tier } from '../shared/types'
+
+// Only the publishable key belongs here: RLS lets it read, and pull_card() is the only write.
+const SUPABASE_URL = 'https://taeiympniwgxcpynlbsh.supabase.co'
+const PUBLISHABLE_KEY = 'sb_publishable_MKquRgBdbxG1-XC7wmLBTA_2sJc0gHD'
+const TOKEN_KEY = 'refreshToken'
+
+const TIERS: Record<Tier, { label: string; color: string }> = {
+  common: { label: 'SILVER', color: 'gray' },
+  middle: { label: 'GOLD', color: 'yellow' },
+  top: { label: 'ALL-STAR', color: 'cyan' },
+  legend: { label: 'ALL-TIME LEGEND', color: 'magenta' },
+}
 
 let isShown = true
-let frame = 0
+let pull: PullResult | null = null
+
+async function post($: EngineInterface, path: string, body: unknown, token?: string) {
+  const headers: Record<string, string> = { apikey: PUBLISHABLE_KEY, 'content-type': 'application/json' }
+  if (token) headers.authorization = `Bearer ${token}`
+  const res = await $.http.fetch(SUPABASE_URL + path, { method: 'POST', headers, body: JSON.stringify(body) })
+  if (!res.ok) throw new Error(`${path}: ${res.status}`)
+  return JSON.parse(res.text)
+}
+
+/** Signs in (anonymously the first time, by refresh token after) and pulls one card. */
+export async function pullCard($: EngineInterface): Promise<PullResult> {
+  const saved = await $.store.get(TOKEN_KEY)
+  // shortcut: a refresh token the server has revoked stays stuck (no new sign-up, so the collection is never orphaned silently); add a reset command if users hit it.
+  const session = typeof saved === 'string'
+    ? await post($, '/auth/v1/token?grant_type=refresh_token', { refresh_token: saved })
+    : await post($, '/auth/v1/signup', {})
+  // Refresh tokens rotate: save the new one before anything else can fail.
+  await $.store.set(TOKEN_KEY, session.refresh_token)
+  return post($, '/rest/v1/rpc/pull_card', {}, session.access_token)
+}
 
 function hide($: EngineInterface) {
   isShown = false
   $.ui.invalidate('ui.render')
 }
 
+const pad = (n: number) => String(n).padStart(3, '0')
+
 export const register: Register = on => {
   isShown = true
-  frame = 0
+  pull = null
 
-  // Shimmer the rainbow title for ~3s, then hold still.
   on('session.start', ($, e, next) => {
-    const stop = $.clock.every(120, () => {
-      frame += 1
-      if (frame >= SHIMMER_FRAMES || !isShown) stop()
-      $.ui.invalidate('ui.render')
-    })
+    // Offline, Supabase down, sign-ins off: stay silent, the band just never shows.
+    pullCard($).then(
+      result => {
+        pull = result
+        $.ui.invalidate('ui.render')
+      },
+      () => {},
+    )
+    return next(e)
+  })
+
+  on('prompt.submit', ($, e, next) => {
+    if (isShown) hide($)
     return next(e)
   })
 
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
-    if (!isShown || e.props.hasSurvey) return next(e)
+    // total 0 means no cards seeded yet: nothing worth showing.
+    if (!isShown || !pull || !pull.total || e.props.hasSurvey) return next(e)
     const below = await next(e)
     const { Box, Button, Text } = $.ui.resolve(e)
+    const hideButton = <Button key="hide" label="Hide" onPress={() => hide($)} />
 
-    if (e.surface !== 'terminal') {
+    if (!('card' in pull)) {
       return (
         <Box flexDirection="column">
           <Box>
-            <Text>🏀 nba test card 1.02 </Text>
-            <Button key="hide" label="Hide" onPress={() => hide($)} />
+            <Text bold color="yellow">🏆 Set complete {pull.total}/{pull.total} </Text>
+            {hideButton}
           </Box>
           {below}
         </Box>
       )
     }
 
+    const { card, owned, total } = pull
     return (
       <Box flexDirection="column">
-        <Box borderStyle="quote" borderColor={RAINBOW[frame % RAINBOW.length]} paddingX={1} flexDirection="column">
-          {/* Animated rows stay emoji-free: emoji widths differ across terminals and smear redraws. */}
-          <Box>
-            {TITLE.split('').map((ch, i) => (
-              <Text bold color={RAINBOW[(i + frame) % RAINBOW.length]}>{ch}</Text>
-            ))}
-          </Box>
-          <Box>
-            <Text>🏀 nba test card 1.02 · </Text>
-            <Text bold color="yellow">A fresh pack is waiting. 🔥</Text>
-          </Box>
-          <Box>
-            <Text dimColor>Tiers: </Text>
-            {TIERS.map(t => (
-              <Box key={t.name}>
-                <Text bold color={t.color}>{t.name}</Text>
-                <Text dimColor> · </Text>
-              </Box>
-            ))}
-            {'SHINY'.split('').map((ch, i) => (
-              <Text bold color={RAINBOW[(i + frame) % RAINBOW.length]}>{ch}</Text>
-            ))}
-          </Box>
-          <Box>
-            <Button key="hide" label="Hide" onPress={() => hide($)} />
-          </Box>
+        {cardView($, e, card, total)}
+        <Box>
+          <Text bold color="green">NEW! </Text>
+          <Text>{owned}/{total} collected </Text>
+          {hideButton}
         </Box>
         {below}
       </Box>
     )
   })
+}
+
+function cardView($: EngineInterface, e: Parameters<EngineInterface['ui']['resolve']>[0], card: Card, total: number) {
+  const { Box, Text } = $.ui.resolve(e)
+  const tier = TIERS[card.tier]
+  const when = card.tier === 'legend' ? `${card.game} · ${card.date}` : `${card.season} · ${card.games} G`
+  const stats: [string, number][] = [
+    ['PTS', card.pts], ['REB', card.reb], ['AST', card.ast], ['STL', card.stl], ['BLK', card.blk], ['FP', card.fp],
+  ]
+  return (
+    <Box borderStyle={card.tier === 'legend' ? 'double' : 'round'} borderColor={tier.color} paddingX={1} flexDirection="column">
+      <Box>
+        <Text bold color={tier.color}>{tier.label} </Text>
+        <Text dimColor>#{pad(card.number)}/{total} </Text>
+        <Text bold>{card.name}</Text>
+      </Box>
+      <Text dimColor>{card.position} · {card.teams.join('/')} · {when}</Text>
+      <Box>
+        {stats.map(([k, v]) => (
+          <Box key={k}>
+            <Text dimColor>{k} </Text>
+            <Text bold>{v}  </Text>
+          </Box>
+        ))}
+      </Box>
+    </Box>
+  )
 }

@@ -10,8 +10,7 @@ export default async function Collection({ params }: { params: Promise<{ id: str
     <section key={p.public_id}>
       <h1>
         {p.public_id}
-        {p.github_login && <small> · @{p.github_login}</small>}
-        <small> · {p.owned.size}/{all.length} owned</small>
+        <small>{p.github_login && `@${p.github_login} · `}{p.owned.size} of {all.length} owned</small>
       </h1>
       <div className="grid">
         {all.map(c => <CardTile key={c.id} card={c} total={all.length} locked={!p.owned.has(c.id)} />)}

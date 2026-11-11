@@ -1,6 +1,9 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
+import { Inter } from 'next/font/google'
 import './globals.css'
+
+const inter = Inter({ subsets: ['latin'], variable: '--font' })
 
 export const metadata: Metadata = {
   title: 'Claude Code Cards',
@@ -9,12 +12,12 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" className={inter.variable}>
       <body>
         <header>
           <Link href="/" className="brand">Claude Code Cards</Link>
           <form action="/u" role="search">
-            <input name="id" placeholder="public_id or GitHub login" aria-label="Find a collection" required />
+            <input name="id" placeholder="hoop-7k2f or GitHub login" aria-label="Find a collection" required />
             <button>Find</button>
           </form>
         </header>

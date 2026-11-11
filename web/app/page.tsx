@@ -12,11 +12,12 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ t
   return (
     <>
       <h1>Series 1</h1>
+      <p className="lede">{all.length} cards. One pulled at the start of every Claude Code session.</p>
       <nav className="tiers" aria-label="Filter by tier">
-        <Link href="/" aria-current={!active ? 'page' : undefined}>all ({all.length})</Link>
+        <Link href="/" aria-current={!active ? 'page' : undefined}>All<span>{all.length}</span></Link>
         {TIERS.map(t => (
           <Link key={t} href={`/?tier=${t}`} aria-current={active === t ? 'page' : undefined}>
-            {t} ({count(t)})
+            {t}<span>{count(t)}</span>
           </Link>
         ))}
       </nav>

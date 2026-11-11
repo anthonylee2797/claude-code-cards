@@ -1,6 +1,7 @@
 # Database history
 
 One line per migration or database-logic change (seed, RPCs, tests), newest last. Add yours in the same PR.
+Every PR, database or not, also goes in the repo-wide [`HISTORY.md`](../HISTORY.md).
 
 | Date | Change | PR |
 | --- | --- | --- |

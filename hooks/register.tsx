@@ -60,11 +60,6 @@ export const register: Register = on => {
     return next(e)
   })
 
-  on('prompt.submit', ($, e, next) => {
-    if (isShown) hide($)
-    return next(e)
-  })
-
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     // total 0 means no cards seeded yet: nothing worth showing.
     if (!isShown || !pull || !pull.total || e.props.hasSurvey) return next(e)

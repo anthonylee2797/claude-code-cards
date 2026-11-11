@@ -24,7 +24,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ t
       <section className="grid">
         {shown.map(c => (
           <CardTile key={c.id} card={c} total={all.length}
-            footer={`pulled ${c.pulls} ${c.pulls === 1 ? 'time' : 'times'}`} />
+            footer={c.pulls === 0 ? 'Not pulled yet' : `In ${c.pulls} ${c.pulls === 1 ? 'collection' : 'collections'}`} />
         ))}
       </section>
     </>

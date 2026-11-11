@@ -19,6 +19,8 @@ Series 1 is built in parallel by several agents. These rules keep them from brea
 To change a contract, open a small pull request that changes only the contract, merge it,
 then update the other branches from `main`. A schema change is always a new migration file.
 
+Every migration or database-logic change adds one line to `supabase/HISTORY.md` (what changed, which PR).
+
 ## Locked in
 
 - Card IDs are stable slugs: `s1-stephen-curry`, `s1-legend-lebron-james`.

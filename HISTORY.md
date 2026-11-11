@@ -14,3 +14,4 @@ Database changes also get a line in [`supabase/HISTORY.md`](supabase/HISTORY.md)
 | 2026-11-10 | web | Catalog and collection pages. | [#13](https://github.com/anthonylee2797/claude-code-cards/pull/13) |
 | 2026-11-10 | data | Full Series 1 card data (`series1.json`) and its build script. | [#14](https://github.com/anthonylee2797/claude-code-cards/pull/14) |
 | 2026-11-11 | plugin | The card stays in the band until you press Hide (no longer hides on the first prompt) (0.4.1). | [#16](https://github.com/anthonylee2797/claude-code-cards/pull/16) |
+| 2026-11-11 | plugin | Terminal shows the pull as one pack-opening style line (rarity badge, stars, NEW, progress bar) that clears on the first prompt; the desktop keeps the full card (0.5.0). | |

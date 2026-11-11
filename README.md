@@ -4,7 +4,7 @@ A Claude Code plugin that greets you with a collectible NBA card every time you 
 
 ## How it works
 
-Each new session pulls one card you don't own yet from Series 1 (155 cards, no duplicates) and shows it above the prompt until you press Hide. The first session signs you in anonymously; the plugin keeps the refresh token in its own store, so your collection carries over between sessions. Offline, or when the server is down, it shows nothing.
+Each new session pulls one card you don't own yet from Series 1 (155 cards, no duplicates) and shows it above the prompt: in the desktop app as a full card until you press Hide, in the terminal as one "You pulled …" line that clears when you send your first prompt. The first session signs you in anonymously; the plugin keeps the refresh token in its own store, so your collection carries over between sessions. Offline, or when the server is down, it shows nothing.
 
 **Claude Code on the web:** untested. The plugin needs a hooks-module host with network access to `*.supabase.co`, so it may not show there.
 

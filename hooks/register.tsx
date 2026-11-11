@@ -15,6 +15,8 @@ const TIERS: Record<Tier, { label: string; color: string }> = {
 }
 
 let isShown = true
+// The terminal shows the pull as one line until the first prompt; the desktop keeps its card until Hide.
+let isPromptSent = false
 let pull: PullResult | null = null
 
 async function post($: EngineInterface, path: string, body: unknown, token?: string) {
@@ -46,7 +48,14 @@ const pad = (n: number) => String(n).padStart(3, '0')
 
 export const register: Register = on => {
   isShown = true
+  isPromptSent = false
   pull = null
+
+  on('prompt.submit', ($, e, next) => {
+    isPromptSent = true
+    $.ui.invalidate('ui.render')
+    return next(e)
+  })
 
   on('session.start', ($, e, next) => {
     // Offline, Supabase down, sign-ins off: stay silent, the band just never shows.
@@ -63,8 +72,10 @@ export const register: Register = on => {
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     // total 0 means no cards seeded yet: nothing worth showing.
     if (!isShown || !pull || !pull.total || e.props.hasSurvey) return next(e)
+    if (e.surface === 'terminal' && isPromptSent) return next(e)
     const below = await next(e)
     const { Box, Button, Text } = $.ui.resolve(e)
+    if (e.surface === 'terminal') return <Box flexDirection="column">{pullLine($, e, pull)}{below}</Box>
     const hideButton = <Button key="hide" label="Hide" onPress={() => hide($)} />
 
     if (!('card' in pull)) {
@@ -92,6 +103,35 @@ export const register: Register = on => {
       </Box>
     )
   })
+}
+
+// Pack-opening style: the rarer the pull, the louder the line (badge, stars, sparkles).
+const STARS: Record<Tier, string> = { common: '★', middle: '★★', top: '★★★', legend: '★★★★' }
+
+function pullLine($: EngineInterface, e: Parameters<EngineInterface['ui']['resolve']>[0], pull: PullResult) {
+  const { Box, Text } = $.ui.resolve(e)
+  if (!('card' in pull)) return <Text bold color="yellow">🏆 Set complete {pull.total}/{pull.total}</Text>
+  const { card, owned, total } = pull
+  const tier = TIERS[card.tier]
+  const isRare = card.tier === 'top' || card.tier === 'legend'
+  const filled = Math.ceil((owned / total) * 10)
+  return (
+    <Box>
+      {card.tier === 'legend' && <Text color={tier.color}>✦ ✧ ✦ </Text>}
+      <Text dimColor>You pulled </Text>
+      <Text bold color="black" backgroundColor={tier.color}> {tier.label} </Text>
+      <Text color={tier.color}> {STARS[card.tier]} </Text>
+      <Text dimColor>#{pad(card.number)} </Text>
+      {isRare && <Text color={tier.color}>✦ </Text>}
+      <Text bold color={card.tier === 'common' ? undefined : tier.color}>{card.name}</Text>
+      {isRare && <Text color={tier.color}> ✦</Text>}
+      <Text dimColor> {card.tier === 'legend' ? card.game : `${card.position} · ${card.teams.join('/')}`}  </Text>
+      <Text bold color="black" backgroundColor="green"> NEW </Text>
+      <Text dimColor> {owned}/{total} </Text>
+      <Text color="green">{'▰'.repeat(filled)}</Text>
+      <Text dimColor>{'▱'.repeat(10 - filled)}</Text>
+    </Box>
+  )
 }
 
 function cardView($: EngineInterface, e: Parameters<EngineInterface['ui']['resolve']>[0], card: Card, total: number) {

@@ -51,10 +51,20 @@ test('first session signs up, saves the token and shows the card', async ($, on)
   for (const surface of SURFACES) {
     const ui = await $.ui.mount({ ...BAND, surface })
     expect((await ui.find({ type: 'Text', text: /Stephen Curry/ }))?.text).toBe('Stephen Curry')
-    expect(await ui.find({ type: 'Text', text: /#023\/155/ })).toBeDefined()
-    expect(await ui.find({ type: 'Text', text: /47\/155 collected/ })).toBeDefined()
     await ui.unmount()
   }
+  const desktop = await $.ui.mount({ ...BAND, surface: 'desktop' })
+  expect(await desktop.find({ type: 'Text', text: /#023\/155/ })).toBeDefined()
+  expect(await desktop.find({ type: 'Text', text: /47\/155 collected/ })).toBeDefined()
+  await desktop.unmount()
+  // The terminal gets one line, no bordered card.
+  const terminal = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  expect(await terminal.find({ type: 'Text', text: /You pulled/ })).toBeDefined()
+  expect(await terminal.find({ type: 'Text', text: /47\/155/ })).toBeDefined()
+  expect(await terminal.find({ type: 'Text', text: /ALL-STAR/ })).toBeDefined()
+  expect(await terminal.find({ type: 'Text', text: /▰/ })).toBeDefined()
+  expect(await terminal.find({ type: 'Text', text: /REB/ })).toBeUndefined()
+  await terminal.unmount()
 })
 
 test('later sessions refresh the saved token, legends show the game line', async ($, on) => {
@@ -100,7 +110,7 @@ test('offline or sign-ins off: nothing shows', async ($, on) => {
   await ui.unmount()
 })
 
-test('the card stays after a prompt is sent', async ($, on) => {
+test('after a prompt the desktop card stays and the terminal line goes', async ($, on) => {
   store(on, { refreshToken: 'r1' })
   on('http.fetch', (_, e) =>
     ok(e.url.includes('pull_card') ? { card: CURRY, owned: 3, total: 155 } : { access_token: 'a', refresh_token: 'r' }))
@@ -110,7 +120,10 @@ test('the card stays after a prompt is sent', async ($, on) => {
   await settle()
   await $.prompt.submit({ text: 'test' })
 
-  const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
-  expect(await ui.find({ type: 'Text', text: /Stephen Curry/ })).toBeDefined()
-  await ui.unmount()
+  const desktop = await $.ui.mount({ ...BAND, surface: 'desktop' })
+  expect(await desktop.find({ type: 'Text', text: /Stephen Curry/ })).toBeDefined()
+  await desktop.unmount()
+  const terminal = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  expect((await terminal.find({ type: 'Text' }))?.text).toBe('engine')
+  await terminal.unmount()
 })

@@ -25,6 +25,16 @@ export async function cards(): Promise<(Card & { pulls: number })[]> {
   return rows.map(r => ({ ...r, pulls: r.pulls[0]?.count ?? 0 }))
 }
 
+/** How many collectors (profiles) exist, from PostgREST's exact count header. */
+export async function collectors(): Promise<number> {
+  const res = await fetch(`${URL}/rest/v1/profiles?select=user_id&limit=1`, {
+    headers: { apikey: KEY, Prefer: 'count=exact' },
+    next: { revalidate: 60 },
+  })
+  if (!res.ok) throw new Error(`Supabase ${res.status}: ${await res.text()}`)
+  return Number(res.headers.get('content-range')?.split('/')[1] ?? 0) // "0-0/123" or "*/0"
+}
+
 export type Profile = { public_id: string; github_login: string | null; owned: Set<string> }
 
 export const VALID_ID = /^[A-Za-z0-9-]{1,39}$/

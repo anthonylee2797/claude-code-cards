@@ -1,11 +1,18 @@
 import Link from 'next/link'
 import { TIERS, type Tier } from '../../shared/types'
-import { cards } from '../lib/db'
+import { cards, collectors } from '../lib/db'
 import { CardTile } from './card'
+
+// "9,000 pulled · 2% of collectors"; a tiny share reads "<1%" rather than "0%".
+function pulledLine(pulls: number, people: number) {
+  if (pulls === 0 || people === 0) return 'Not pulled yet'
+  const pct = (pulls / people) * 100
+  return `${pulls.toLocaleString('en-US')} pulled · ${pct < 1 ? '<1' : Math.round(pct)}% of collectors`
+}
 
 export default async function Home({ searchParams }: { searchParams: Promise<{ tier?: string }> }) {
   const { tier } = await searchParams
-  const all = await cards()
+  const [all, people] = await Promise.all([cards(), collectors()])
   const active = TIERS.find(t => t === tier)
   const shown = active ? all.filter(c => c.tier === active) : all
   const count = (t: Tier) => all.filter(c => c.tier === t).length
@@ -24,7 +31,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ t
       <section className="grid">
         {shown.map(c => (
           <CardTile key={c.id} card={c} total={all.length}
-            footer={c.pulls === 0 ? 'Not pulled yet' : `In ${c.pulls} ${c.pulls === 1 ? 'collection' : 'collections'}`} />
+            footer={pulledLine(c.pulls, people)} />
         ))}
       </section>
     </>

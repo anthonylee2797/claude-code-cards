@@ -99,3 +99,18 @@ test('offline or sign-ins off: nothing shows', async ($, on) => {
   expect((await ui.find({ type: 'Text' }))?.text).toBe('engine')
   await ui.unmount()
 })
+
+test('the card stays after a prompt is sent', async ($, on) => {
+  store(on, { refreshToken: 'r1' })
+  on('http.fetch', (_, e) =>
+    ok(e.url.includes('pull_card') ? { card: CURRY, owned: 3, total: 155 } : { access_token: 'a', refresh_token: 'r' }))
+  engine(on)
+  on('prompt.submit', (_, e) => ({ text: e.text }))
+  await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
+  await settle()
+  await $.prompt.submit({ text: 'test' })
+
+  const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  expect(await ui.find({ type: 'Text', text: /Stephen Curry/ })).toBeDefined()
+  await ui.unmount()
+})

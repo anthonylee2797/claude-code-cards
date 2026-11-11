@@ -47,10 +47,7 @@ h1 small { display: block; font-size: 18px; font-weight: 500; letter-spacing: 0;
   background: color-mix(in srgb, var(--tier) 14%, transparent); padding: 3px 8px; border-radius: 999px; }
 .name { font-size: 22px; font-weight: 800; letter-spacing: -.02em; line-height: 1.1; margin: 0 0 4px; }
 .meta { font-size: 13px; color: var(--muted); }
-.fp { margin: 14px 0 10px; display: flex; align-items: baseline; gap: 6px; }
-.fp b { font-size: 40px; font-weight: 800; letter-spacing: -.03em; line-height: 1; color: var(--tier); font-variant-numeric: tabular-nums; }
-.fp span { font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
-.stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; margin: 0;
+.stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; margin: 14px 0 0;
   background: var(--line); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
 .stats div { background: var(--bg); padding: 8px 10px; }
 .stats dt { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }

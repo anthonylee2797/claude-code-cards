@@ -19,7 +19,6 @@ export function CardTile({ card, total, locked, footer }: {
       <h2 className="name">{card.name}</h2>
       <div className="meta">{card.position} · {card.teams.join(' / ')}</div>
       <div className="meta">{when}</div>
-      <div className="fp"><b>{card.fp}</b> <span>fantasy pts</span></div>
       <dl className="stats">
         {STATS.map(s => <div key={s}><dt>{s}</dt><dd>{card[s]}</dd></div>)}
       </dl>

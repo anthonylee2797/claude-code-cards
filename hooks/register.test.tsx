@@ -29,6 +29,8 @@ function store(on: On, entries: Record<string, unknown> = {}) {
 // What the engine answers beneath the plugin: session start, and its own prompt drawing.
 function engine(on: On) {
   on('session.start', (_, e) => ({ cwd: e.cwd }))
+  on('command.register', (_, e) => ({ value: { command: e.name } }))
+  on('ui.open', () => ({ value: { isPlaced: true } }))
   on('ui.render', ($, e) => { const { Text } = $.ui.resolve(e); return <Text>engine</Text> })
 }
 
@@ -51,10 +53,20 @@ test('first session signs up, saves the token and shows the card', async ($, on)
   for (const surface of SURFACES) {
     const ui = await $.ui.mount({ ...BAND, surface })
     expect((await ui.find({ type: 'Text', text: /Stephen Curry/ }))?.text).toBe('Stephen Curry')
-    expect(await ui.find({ type: 'Text', text: /#023\/155/ })).toBeDefined()
-    expect(await ui.find({ type: 'Text', text: /47\/155 collected/ })).toBeDefined()
     await ui.unmount()
   }
+  const desktop = await $.ui.mount({ ...BAND, surface: 'desktop' })
+  expect(await desktop.find({ type: 'Text', text: /#023\/155/ })).toBeDefined()
+  expect(await desktop.find({ type: 'Text', text: /47\/155 collected/ })).toBeDefined()
+  await desktop.unmount()
+  // The terminal gets one line, no bordered card.
+  const terminal = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  expect(await terminal.find({ type: 'Text', text: /You pulled/ })).toBeDefined()
+  expect(await terminal.find({ type: 'Text', text: /47\/155/ })).toBeDefined()
+  expect(await terminal.find({ type: 'Text', text: /ALL-STAR/ })).toBeDefined()
+  expect(await terminal.find({ type: 'Text', text: /▰/ })).toBeDefined()
+  expect(await terminal.find({ type: 'Text', text: /REB/ })).toBeUndefined()
+  await terminal.unmount()
 })
 
 test('later sessions refresh the saved token, legends show the game line', async ($, on) => {
@@ -100,7 +112,7 @@ test('offline or sign-ins off: nothing shows', async ($, on) => {
   await ui.unmount()
 })
 
-test('the card stays after a prompt is sent', async ($, on) => {
+test('after a prompt the desktop card stays and the terminal line goes', async ($, on) => {
   store(on, { refreshToken: 'r1' })
   on('http.fetch', (_, e) =>
     ok(e.url.includes('pull_card') ? { card: CURRY, owned: 3, total: 155 } : { access_token: 'a', refresh_token: 'r' }))
@@ -110,7 +122,77 @@ test('the card stays after a prompt is sent', async ($, on) => {
   await settle()
   await $.prompt.submit({ text: 'test' })
 
-  const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
-  expect(await ui.find({ type: 'Text', text: /Stephen Curry/ })).toBeDefined()
-  await ui.unmount()
+  const desktop = await $.ui.mount({ ...BAND, surface: 'desktop' })
+  expect(await desktop.find({ type: 'Text', text: /Stephen Curry/ })).toBeDefined()
+  await desktop.unmount()
+  const terminal = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  expect((await terminal.find({ type: 'Text' }))?.text).toBe('engine')
+  await terminal.unmount()
+})
+
+const OUTPUT = { plugin: 'nba-cards', component: 'CommandOutput', props: { command: 'card', args: '', text: '', isErrored: false } } as const
+const PANE = { plugin: 'nba-cards', component: 'Pane', requestId: 'collection', props: {
+  title: 'Collection', isFocused: false, bodyColumns: 40, placement: 'dock', scroll: { offset: 0, bodyRows: 20 }, view: {},
+} } as const
+const ALL_SURFACES = ['terminal', 'desktop', 'vscode', 'mobile'] as const
+
+test('/card shows the pulled card again, as text and as the full card', async ($, on) => {
+  store(on, { refreshToken: 'r1' })
+  on('http.fetch', (_, e) =>
+    ok(e.url.includes('pull_card') ? { card: CURRY, owned: 3, total: 155 } : { access_token: 'a', refresh_token: 'r' }))
+  engine(on)
+  await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
+  await settle()
+
+  expect((await $.command.run({ command: 'card' })).text).toBe('ALL-STAR #023/155 Stephen Curry')
+  for (const surface of SURFACES) {
+    const ui = await $.ui.mount({ ...OUTPUT, surface })
+    expect(await ui.find({ type: 'Text', text: /Stephen Curry/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /REB/ })).toBeDefined()
+    await ui.unmount()
+  }
+})
+
+test('/card before any pull says so in one line', async ($, on) => {
+  store(on)
+  on('http.fetch', () => ({ value: { status: 500, ok: false, headers: {}, text: '{}' } }))
+  engine(on)
+  await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
+  await settle()
+
+  expect((await $.command.run({ command: 'card' })).text).toBe('No card pulled yet this session.')
+  expect((await $.command.run({ command: 'collection' })).text).toBe('Not signed in to the card server this session.')
+})
+
+test('/collection reads the user\'s own pulls with the session token and lists them in a pane', async ($, on) => {
+  store(on, { refreshToken: 'r1' })
+  const calls: string[] = []
+  on('http.fetch', (_, e) => {
+    calls.push(e.url.replace(/^https:\/\/[^/]+/, '') + ' ' + (e.init?.headers?.authorization ?? ''))
+    if (e.url.includes('grant_type=refresh_token')) return ok({ access_token: 'a2', refresh_token: 'r2', user: { id: 'u1' } })
+    if (e.url.includes('pull_card')) return ok({ card: CURRY, owned: 2, total: 155 })
+    return ok([{ cards: { number: 151, name: 'LeBron James', tier: 'legend' } }, { cards: { number: 23, name: 'Stephen Curry', tier: 'top' } }])
+  })
+  engine(on)
+  await $.session.start({ cwd: '/', surface: 'mobile', isInteractive: true })
+  await settle()
+
+  expect((await $.command.run({ command: 'collection' })).text).toBe('Collection: 2 cards.')
+  // No second sign-in: the pull's token is reused.
+  expect(calls.slice(2)).toEqual(['/rest/v1/pulls?select=cards(number,name,tier)&user_id=eq.u1 Bearer a2'])
+  for (const surface of ALL_SURFACES) {
+    const ui = await $.ui.mount({ ...PANE, surface })
+    expect(await ui.find({ type: 'Text', text: /2\/155 collected/ })).toBeDefined()
+    const names = (await ui.findAll({ type: 'Text', text: /James|Curry/ })).map(t => t.text)
+    expect(names).toEqual(['Stephen Curry', 'LeBron James'])
+    expect(await ui.find({ type: 'Text', text: /#151/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /ALL-TIME LEGEND/ })).toBeDefined()
+    await ui.unmount()
+  }
+})
+
+test('a throwing prompt.submit still lets the prompt through', async ($, on) => {
+  on('ui.invalidate', () => { throw new Error('boom') })
+  on('prompt.submit', (_, e) => ({ text: e.text }))
+  expect((await $.prompt.submit({ text: 'hi' })).text).toBe('hi')
 })

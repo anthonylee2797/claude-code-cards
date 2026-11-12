@@ -134,16 +134,17 @@ export const register: Register = on => {
     if (e.surface === 'terminal' && isPromptSent) return next(e)
     const below = await next(e)
     const { Box, Button, Text } = $.ui.resolve(e)
-    if (e.surface === 'terminal') return <Box flexDirection="column">{pullLine($, e, pull)}{below}</Box>
     const hideButton = <Button key="hide" label="Hide" onPress={() => hide($)} />
+    // The plugin version sits at the right end of the pull's row.
+    const row = (...left: unknown[]) => (
+      <Box justifyContent="space-between"><Box>{left}</Box><Text dimColor>v{VERSION}</Text></Box>
+    )
+    if (e.surface === 'terminal') return <Box flexDirection="column">{row(pullLine($, e, pull))}{below}</Box>
 
     if (!('card' in pull)) {
       return (
         <Box flexDirection="column">
-          <Box>
-            <Text bold color="yellow">🏆 Set complete {pull.total}/{pull.total} </Text>
-            {hideButton}
-          </Box>
+          {row(<Text key="t" bold color="yellow">🏆 Set complete {pull.total}/{pull.total} </Text>, hideButton)}
           {below}
         </Box>
       )
@@ -153,11 +154,11 @@ export const register: Register = on => {
     return (
       <Box flexDirection="column">
         {cardView($, e, card, total)}
-        <Box>
-          <Text bold color="green">NEW! </Text>
-          <Text>{owned}/{total} collected </Text>
-          {hideButton}
-        </Box>
+        {row(
+          <Text key="n" bold color="green">NEW! </Text>,
+          <Text key="c">{owned}/{total} collected </Text>,
+          hideButton,
+        )}
         {below}
       </Box>
     )
@@ -165,6 +166,9 @@ export const register: Register = on => {
 }
 
 // Pack-opening style: the rarer the pull, the louder the line (badge, stars, sparkles).
+// shortcut: bump together with .claude-plugin/plugin.json (modules can't import JSON); read the manifest if the API ever exposes it.
+export const VERSION = '0.6.1'
+
 const STARS: Record<Tier, string> = { common: '★', middle: '★★', top: '★★★', legend: '★★★★' }
 
 function pullLine($: EngineInterface, e: Parameters<EngineInterface['ui']['resolve']>[0], pull: PullResult) {

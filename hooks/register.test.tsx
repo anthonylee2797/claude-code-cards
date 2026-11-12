@@ -2,6 +2,7 @@ import type { On } from 'claude-code'
 import { expect, test } from 'claude-code/testing'
 
 import type { Card } from '../shared/types'
+import { VERSION } from './register'
 
 // From data/series1.sample.json.
 const CURRY: Card = { id: 's1-stephen-curry', number: 23, name: 'Stephen Curry', tier: 'top',
@@ -53,6 +54,7 @@ test('first session signs up, saves the token and shows the card', async ($, on)
   for (const surface of SURFACES) {
     const ui = await $.ui.mount({ ...BAND, surface })
     expect((await ui.find({ type: 'Text', text: /Stephen Curry/ }))?.text).toBe('Stephen Curry')
+    expect(await ui.find({ type: 'Text', text: `v${VERSION}` })).toBeDefined()
     await ui.unmount()
   }
   const desktop = await $.ui.mount({ ...BAND, surface: 'desktop' })
@@ -196,3 +198,4 @@ test('a throwing prompt.submit still lets the prompt through', async ($, on) => 
   on('prompt.submit', (_, e) => ({ text: e.text }))
   expect((await $.prompt.submit({ text: 'hi' })).text).toBe('hi')
 })
+

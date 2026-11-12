@@ -77,6 +77,7 @@ export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     await $.command.register({ name: 'card', description: 'Show the card you pulled this session' })
     await $.command.register({ name: 'collection', description: 'List the cards you own' })
+    await $.command.register({ name: 'nba-version', description: 'Show the installed nba-cards version' })
     // Offline, Supabase down, sign-ins off: stay silent, the band just never shows.
     pullCard($).then(
       result => {
@@ -98,6 +99,16 @@ export const register: Register = on => {
   // The text above stays the row's fallback; every surface that draws this gets the full card.
   on('ui.render', { component: 'CommandOutput', props: { command: 'card' } }, ($, e, next) =>
     pull && 'card' in pull ? cardView($, e, pull.card, pull.total) : next(e))
+
+  // plugin.json is the one place the version lives; $.plugin carries no version.
+  on('command.run', { command: 'nba-version' }, async $ => {
+    try {
+      const { version } = JSON.parse(await $.fs.read(`${$.plugin.root}/.claude-plugin/plugin.json`))
+      return { text: `nba-cards ${version}` }
+    } catch {
+      return { text: 'Could not read the nba-cards version.' }
+    }
+  })
 
   on('command.run', { command: 'collection' }, async $ => {
     if (!auth) return { text: 'Not signed in to the card server this session.' }
@@ -139,9 +150,11 @@ export const register: Register = on => {
 
     if (!('card' in pull)) {
       return (
-        <Box flexDirection="column">
-          <Box>
-            <Text bold color="yellow">🏆 Set complete {pull.total}/{pull.total} </Text>
+        <Box flexDirection="column" gap="sm">
+          <Box borderStyle="round" borderColor="yellow" paddingX="md" paddingY="sm" gap="sm" alignItems="center">
+            <Text size="heading" weight="bold" color="yellow">🏆 Set complete</Text>
+            <Text size="footnote" dimColor tabular>All {pull.total} of {pull.total} cards collected</Text>
+            <Box flexGrow={1} />
             {hideButton}
           </Box>
           {below}
@@ -151,13 +164,14 @@ export const register: Register = on => {
 
     const { card, owned, total } = pull
     return (
-      <Box flexDirection="column">
-        {cardView($, e, card, total)}
-        <Box>
-          <Text bold color="green">NEW! </Text>
-          <Text>{owned}/{total} collected </Text>
-          {hideButton}
-        </Box>
+      <Box flexDirection="column" gap="sm">
+        {cardView($, e, card, total,
+          <Box gap="sm" alignItems="center">
+            <Text size="caption" weight="bold" color="black" backgroundColor="green"> NEW </Text>
+            <Text size="footnote" tabular>{owned}/{total} collected</Text>
+            {progress($, e, owned, total)}
+            {hideButton}
+          </Box>)}
         {below}
       </Box>
     )
@@ -173,7 +187,6 @@ function pullLine($: EngineInterface, e: Parameters<EngineInterface['ui']['resol
   const { card, owned, total } = pull
   const tier = TIERS[card.tier]
   const isRare = card.tier === 'top' || card.tier === 'legend'
-  const filled = Math.ceil((owned / total) * 10)
   return (
     <Box>
       {card.tier === 'legend' && <Text color={tier.color}>✦ ✧ ✦ </Text>}
@@ -187,19 +200,55 @@ function pullLine($: EngineInterface, e: Parameters<EngineInterface['ui']['resol
       <Text dimColor> {card.tier === 'legend' ? card.game : `${card.position} · ${card.teams.join('/')}`}  </Text>
       <Text bold color="black" backgroundColor="green"> NEW </Text>
       <Text dimColor> {owned}/{total} </Text>
+      {progress($, e, owned, total)}
+    </Box>
+  )
+}
+
+function progress($: EngineInterface, e: Parameters<EngineInterface['ui']['resolve']>[0], owned: number, total: number) {
+  const { Box, Text } = $.ui.resolve(e)
+  const filled = Math.ceil((owned / total) * 10)
+  return (
+    <Box>
       <Text color="green">{'▰'.repeat(filled)}</Text>
       <Text dimColor>{'▱'.repeat(10 - filled)}</Text>
     </Box>
   )
 }
 
-function cardView($: EngineInterface, e: Parameters<EngineInterface['ui']['resolve']>[0], card: Card, total: number) {
+/** The full card; `footer` sits inside it, under the stats (the band's collected row). */
+function cardView($: EngineInterface, e: Parameters<EngineInterface['ui']['resolve']>[0], card: Card, total: number, footer?: unknown) {
   const { Box, Text } = $.ui.resolve(e)
   const tier = TIERS[card.tier]
   const when = card.tier === 'legend' ? `${card.game} · ${card.date}` : `${card.season} · ${card.games} G`
   const stats: [string, number][] = [
     ['PTS', card.pts], ['REB', card.reb], ['AST', card.ast], ['STL', card.stl], ['BLK', card.blk], ['FP', card.fp],
   ]
+  if (e.surface !== 'terminal') {
+    const isRare = card.tier === 'top' || card.tier === 'legend'
+    return (
+      // Two rows: the band stays until Hide, so it must stay short.
+      <Box borderStyle={card.tier === 'legend' ? 'double' : 'round'} borderColor={tier.color} paddingX="md" paddingY="sm" flexDirection="column" gap="xs">
+        <Box gap="sm" alignItems="center">
+          <Text size="caption" weight="bold" color="black" backgroundColor={tier.color}> {tier.label} {STARS[card.tier]} </Text>
+          <Text size="heading" weight="bold" color={isRare ? tier.color : undefined}>{card.name}</Text>
+          <Text size="footnote" dimColor>{card.position} · {card.teams.join(' / ')} · {when}</Text>
+          <Box flexGrow={1} />
+          <Text size="caption" dimColor tabular>#{pad(card.number)}/{total}</Text>
+        </Box>
+        <Box gap="md" alignItems="center">
+          {stats.map(([k, v]) => (
+            <Box key={k} gap="xs">
+              <Text size="caption" dimColor>{k}</Text>
+              <Text size="footnote" weight="semibold" tabular>{v}</Text>
+            </Box>
+          ))}
+          <Box flexGrow={1} />
+          {footer}
+        </Box>
+      </Box>
+    )
+  }
   return (
     <Box borderStyle={card.tier === 'legend' ? 'double' : 'round'} borderColor={tier.color} paddingX={1} flexDirection="column">
       <Box>

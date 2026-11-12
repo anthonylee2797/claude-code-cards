@@ -18,6 +18,11 @@ let isShown = true
 // The terminal shows the pull as one line until the first prompt; the desktop keeps its card until Hide.
 let isPromptSent = false
 let pull: PullResult | null = null
+// shortcut: the access token expires after an hour, so /collection fails in longer sessions; refresh on 401 if users hit it.
+let auth: { token: string; userId: string } | null = null
+type Owned = Pick<Card, 'number' | 'name' | 'tier'>
+let owned: Owned[] = []
+const PANE = 'collection'
 
 async function post($: EngineInterface, path: string, body: unknown, token?: string) {
   const headers: Record<string, string> = { apikey: PUBLISHABLE_KEY, 'content-type': 'application/json' }
@@ -36,7 +41,17 @@ export async function pullCard($: EngineInterface): Promise<PullResult> {
     : await post($, '/auth/v1/signup', {})
   // Refresh tokens rotate: save the new one before anything else can fail.
   await $.store.set(TOKEN_KEY, session.refresh_token)
+  auth = { token: session.access_token, userId: session.user?.id }
   return post($, '/rest/v1/rpc/pull_card', {}, session.access_token)
+}
+
+/** This user's cards, read with their own token (RLS lets clients read pulls, never write). */
+async function ownedCards($: EngineInterface, { token, userId }: NonNullable<typeof auth>): Promise<Owned[]> {
+  const res = await $.http.fetch(`${SUPABASE_URL}/rest/v1/pulls?select=cards(number,name,tier)&user_id=eq.${userId}`, {
+    headers: { apikey: PUBLISHABLE_KEY, authorization: `Bearer ${token}` },
+  })
+  if (!res.ok) throw new Error(`pulls: ${res.status}`)
+  return (JSON.parse(res.text) as { cards: Owned }[]).map(r => r.cards).sort((a, b) => a.number - b.number)
 }
 
 function hide($: EngineInterface) {
@@ -50,14 +65,18 @@ export const register: Register = on => {
   isShown = true
   isPromptSent = false
   pull = null
+  auth = null
+  owned = []
 
   on('prompt.submit', ($, e, next) => {
     isPromptSent = true
     $.ui.invalidate('ui.render')
     return next(e)
-  })
+  }).catch(($, e, next) => next(e)) // a throw here must never block the prompt
 
-  on('session.start', ($, e, next) => {
+  on('session.start', async ($, e, next) => {
+    await $.command.register({ name: 'card', description: 'Show the card you pulled this session' })
+    await $.command.register({ name: 'collection', description: 'List the cards you own' })
     // Offline, Supabase down, sign-ins off: stay silent, the band just never shows.
     pullCard($).then(
       result => {
@@ -67,6 +86,46 @@ export const register: Register = on => {
       () => {},
     )
     return next(e)
+  })
+
+  on('command.run', { command: 'card' }, () => {
+    if (!pull) return { text: 'No card pulled yet this session.' }
+    if (!('card' in pull)) return { text: `Set complete ${pull.total}/${pull.total}` }
+    const { card, total } = pull
+    return { text: `${TIERS[card.tier].label} #${pad(card.number)}/${total} ${card.name}` }
+  })
+
+  // The text above stays the row's fallback; every surface that draws this gets the full card.
+  on('ui.render', { component: 'CommandOutput', props: { command: 'card' } }, ($, e, next) =>
+    pull && 'card' in pull ? cardView($, e, pull.card, pull.total) : next(e))
+
+  on('command.run', { command: 'collection' }, async $ => {
+    if (!auth) return { text: 'Not signed in to the card server this session.' }
+    try {
+      owned = await ownedCards($, auth)
+    } catch {
+      return { text: 'Could not load your collection.' }
+    }
+    $.ui.invalidate('ui.render')
+    await $.ui.open({ id: PANE, title: 'Collection' })
+    return { text: `Collection: ${owned.length} cards.` }
+  })
+
+  // Long lists page by the pane's own scrolling (the engine moves its window over the body).
+  on('ui.render', { component: 'Pane', requestId: PANE }, ($, e) => {
+    const { Box, Text } = $.ui.resolve(e)
+    return (
+      <Box flexDirection="column">
+        <Text bold>{owned.length}{pull ? `/${pull.total}` : ''} collected</Text>
+        {owned.map(c => (
+          <Box key={c.number}>
+            <Text bold color="black" backgroundColor={TIERS[c.tier].color}> {TIERS[c.tier].label} </Text>
+            <Text dimColor> #{pad(c.number)} </Text>
+            <Text>{c.name}</Text>
+          </Box>
+        ))}
+      </Box>
+    )
   })
 
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {

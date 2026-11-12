@@ -17,3 +17,4 @@ Database changes also get a line in [`supabase/HISTORY.md`](supabase/HISTORY.md)
 | 2026-11-11 | plugin | Terminal shows the pull as one pack-opening style line (rarity badge, stars, NEW, progress bar) that clears on the first prompt; the desktop keeps the full card (0.5.0). | |
 | 2026-11-11 | plugin | `/card` shows this session's card again (full card inline), `/collection` lists your cards in a pane on every surface (VS Code and mobile too), and the `prompt.submit` hook can no longer block a prompt (0.6.0). | |
 | 2026-11-11 | plugin | Launch polish: plugin icon, marketplace description, README desktop install, privacy note and screenshot placeholders. | [#18](https://github.com/anthonylee2797/claude-code-cards/pull/18) |
+| 2026-11-12 | plugin | Desktop card redesigned as a compact two-row card (tier chip, name, stats, NEW, progress bar, Hide inside the card); `/nba-version` shows the installed version (0.7.0). | |

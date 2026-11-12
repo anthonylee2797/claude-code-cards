@@ -97,6 +97,10 @@ test('set complete', async ($, on) => {
   const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
   expect(await ui.find({ type: 'Text', text: /Set complete 155\/155/ })).toBeDefined()
   await ui.unmount()
+  const desktop = await $.ui.mount({ ...BAND, surface: 'desktop' })
+  expect(await desktop.find({ type: 'Text', text: /All 155 of 155 cards collected/ })).toBeDefined()
+  expect(await desktop.find({ type: 'Button' })).toBeDefined()
+  await desktop.unmount()
 })
 
 test('offline or sign-ins off: nothing shows', async ($, on) => {
@@ -195,4 +199,14 @@ test('a throwing prompt.submit still lets the prompt through', async ($, on) => 
   on('ui.invalidate', () => { throw new Error('boom') })
   on('prompt.submit', (_, e) => ({ text: e.text }))
   expect((await $.prompt.submit({ text: 'hi' })).text).toBe('hi')
+})
+
+test('/nba-version reads the version from plugin.json', async ($, on) => {
+  store(on)
+  on('http.fetch', () => ({ value: { status: 500, ok: false, headers: {}, text: '{}' } }))
+  on('fs.read', (_, e) => ({ value: /\.claude-plugin[\\/]plugin\.json$/.test(e.path) ? '{"name":"nba-cards","version":"9.9.9"}' : '' }))
+  engine(on)
+  await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
+
+  expect((await $.command.run({ command: 'nba-version' })).text).toBe('nba-cards 9.9.9')
 })

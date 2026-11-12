@@ -1,6 +1,7 @@
 {
   "name": "claude-code-cards",
   "owner": { "name": "Anthony Lee" },
+  "description": "Collectible NBA cards for Claude Code: pull one each time you start a session.",
   "plugins": [
     {
       "name": "nba-cards",

@@ -31,17 +31,37 @@ await db.query(`insert into auth.users values ($1)`, [uid])
 const prof = (await db.query(`select public_id from public.profiles`)).rows
 assert(prof.length === 1 && /^hoop-[0-9a-z]{4}$/.test(prof[0].public_id), 'profile created ' + JSON.stringify(prof))
 
+// Pull windows: 12am-12pm and 12pm-12am New York time, DST included (2026-03-08 springs forward, 2026-11-01 falls back).
+for (const [at, start, end] of [
+  ['2026-11-12 11:59:59-05', '2026-11-12 00:00-05', '2026-11-12 12:00-05'],
+  ['2026-11-12 12:00-05', '2026-11-12 12:00-05', '2026-11-13 00:00-05'],
+  ['2026-11-01 06:00Z', '2026-11-01 04:00Z', '2026-11-01 17:00Z'],
+  ['2026-03-08 06:00Z', '2026-03-08 05:00Z', '2026-03-08 16:00Z'],
+]) {
+  const w = (await db.query(`select lower(w) = $2::timestamptz s, upper(w) = $3::timestamptz e, w::text from public.pull_window($1) w`, [at, start, end])).rows[0]
+  assert(w.s && w.e, `window for ${at}: ${w.w}`)
+}
+
 await db.exec(`set role authenticated; select set_config('request.jwt.claim.sub', '${uid}', false)`)
+const pull = async () => (await db.query(`select public.pull_card() r`)).rows[0].r
+// Moves every pull back a day, as if the next window had come (pulls are not client-writable).
+const nextWindow = () => db.exec(`reset role; update public.pulls set pulled_at = pulled_at - interval '1 day'; set role authenticated`)
 const seen = new Set()
 for (let i = 1; i <= cards.length; i++) {
-  const r = (await db.query(`select public.pull_card() r`)).rows[0].r
+  const r = await pull()
+  if (i === 1) {
+    const again = await pull()
+    const next = (await db.query(`select upper(public.pull_window(now())) t`)).rows[0].t
+    assert(again.status === 'wait' && Date.parse(again.next_at) === next.getTime() && !('card' in again), 'second pull in a window waits ' + JSON.stringify(again))
+  }
+  await nextWindow()
   assert(r.owned === i && r.total === cards.length && !seen.has(r.card.id), 'pull ' + JSON.stringify(r))
   const want = cards.find(c => c.id === r.card.id)
   assert(JSON.stringify(Object.keys(r.card).sort()) === JSON.stringify(Object.keys(want).sort()), 'card keys ' + JSON.stringify(r.card))
   assert(r.card.fp === want.fp && r.card.teams.join() === want.teams.join(), 'card values')
   seen.add(r.card.id)
 }
-const done = (await db.query(`select public.pull_card() r`)).rows[0].r
+const done = await pull()
 assert(done.status === 'set_complete' && done.total === cards.length, 'complete ' + JSON.stringify(done))
 // Clients cannot write.
 for (const sql of [`insert into public.pulls values ('${uid}', 's1-stephen-curry')`, `delete from public.pulls`, `update public.cards set tier = 'top'`]) {
@@ -51,4 +71,4 @@ for (const sql of [`insert into public.pulls values ('${uid}', 's1-stephen-curry
 await db.exec(`set role anon`)
 assert((await db.query(`select count(*)::int n from public.pulls`)).rows[0].n === cards.length, 'anon can read')
 assert(await db.query(`select public.pull_card()`).then(() => false, () => true), 'anon cannot pull')
-console.log(`ok (${file}): profile, idempotent seed, ${cards.length} distinct pulls, set_complete, no client writes, anon read-only`)
+console.log(`ok (${file}): profile, idempotent seed, pull windows, wait, ${cards.length} distinct pulls, set_complete, no client writes, anon read-only`)

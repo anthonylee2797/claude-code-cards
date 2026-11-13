@@ -78,9 +78,14 @@ export const register: Register = on => {
     await $.command.register({ name: 'card', description: 'Show the card you pulled this session' })
     await $.command.register({ name: 'collection', description: 'List the cards you own' })
     await $.command.register({ name: 'nba-version', description: 'Show the installed nba-cards version' })
+    // Scripts (-p, SDK) never see the band, so they must not use up the window's card.
+    if (!e.isInteractive) return next(e)
+    // session.start also fires on plugin reloads and worker restarts; the server answers those with 'wait'.
+    // shortcut: a reload mid-session clears the card on screen (the server only says 'wait'); keep the pull in $.store if users notice.
     // Offline, Supabase down, sign-ins off: stay silent, the band just never shows.
     pullCard($).then(
       result => {
+        if ('next_at' in result && pull) return // never replace what this session already shows
         pull = result
         $.ui.invalidate('ui.render')
       },
@@ -91,6 +96,10 @@ export const register: Register = on => {
 
   on('command.run', { command: 'card' }, () => {
     if (!pull) return { text: 'No card pulled yet this session.' }
+    if ('next_at' in pull) {
+      const hours = Math.max(1, Math.ceil((Date.parse(pull.next_at) - Date.now()) / 3_600_000))
+      return { text: `You already pulled a card this window. Next card in about ${hours}h.` }
+    }
     if (!('card' in pull)) return { text: `Set complete ${pull.total}/${pull.total}` }
     const { card, total } = pull
     return { text: `${TIERS[card.tier].label} #${pad(card.number)}/${total} ${card.name}` }
@@ -127,7 +136,7 @@ export const register: Register = on => {
     const { Box, Text } = $.ui.resolve(e)
     return (
       <Box flexDirection="column">
-        <Text bold>{owned.length}{pull ? `/${pull.total}` : ''} collected</Text>
+        <Text bold>{owned.length}{pull && 'total' in pull ? `/${pull.total}` : ''} collected</Text>
         {owned.map(c => (
           <Box key={c.number}>
             <Text bold color="black" backgroundColor={TIERS[c.tier].color}> {TIERS[c.tier].label} </Text>
@@ -141,7 +150,8 @@ export const register: Register = on => {
 
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     // total 0 means no cards seeded yet: nothing worth showing.
-    if (!isShown || !pull || !pull.total || e.props.hasSurvey) return next(e)
+    // 'wait': already pulled this window, so nothing shows.
+    if (!isShown || !pull || 'next_at' in pull || !pull.total || e.props.hasSurvey) return next(e)
     if (e.surface === 'terminal' && isPromptSent) return next(e)
     const below = await next(e)
     const { Box, Button, Text } = $.ui.resolve(e)
@@ -181,7 +191,7 @@ export const register: Register = on => {
 // Pack-opening style: the rarer the pull, the louder the line (badge, stars, sparkles).
 const STARS: Record<Tier, string> = { common: '★', middle: '★★', top: '★★★', legend: '★★★★' }
 
-function pullLine($: EngineInterface, e: Parameters<EngineInterface['ui']['resolve']>[0], pull: PullResult) {
+function pullLine($: EngineInterface, e: Parameters<EngineInterface['ui']['resolve']>[0], pull: Exclude<PullResult, { status: 'wait' }>) {
   const { Box, Text } = $.ui.resolve(e)
   if (!('card' in pull)) return <Text bold color="yellow">🏆 Set complete {pull.total}/{pull.total}</Text>
   const { card, owned, total } = pull

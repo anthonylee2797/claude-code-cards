@@ -116,6 +116,53 @@ test('offline or sign-ins off: nothing shows', async ($, on) => {
   await ui.unmount()
 })
 
+test('already pulled this window: nothing shows, /card says when the next one comes', async ($, on) => {
+  store(on, { refreshToken: 'r1' })
+  const nextAt = new Date(Date.now() + 5 * 3_600_000 - 60_000).toISOString()
+  on('http.fetch', (_, e) =>
+    ok(e.url.includes('pull_card') ? { status: 'wait', next_at: nextAt } : { access_token: 'a', refresh_token: 'r' }))
+  engine(on)
+  await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
+  await settle()
+
+  for (const surface of SURFACES) {
+    const ui = await $.ui.mount({ ...BAND, surface })
+    expect((await ui.find({ type: 'Text' }))?.text).toBe('engine')
+    await ui.unmount()
+  }
+  expect((await $.command.run({ command: 'card' })).text).toBe('You already pulled a card this window. Next card in about 5h.')
+})
+
+test('a second session.start (reload, worker restart) keeps the card on screen', async ($, on) => {
+  store(on, { refreshToken: 'r1' })
+  let pulls = 0
+  on('http.fetch', (_, e) => {
+    if (!e.url.includes('pull_card')) return ok({ access_token: 'a', refresh_token: 'r' })
+    return ok(pulls++ === 0 ? { card: CURRY, owned: 3, total: 155 } : { status: 'wait', next_at: '2026-11-12T17:00:00+00:00' })
+  })
+  engine(on)
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  await settle()
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  await settle()
+
+  expect(pulls).toBe(2)
+  const ui = await $.ui.mount({ ...BAND, surface: 'desktop' })
+  expect(await ui.find({ type: 'Text', text: /Stephen Curry/ })).toBeDefined()
+  await ui.unmount()
+})
+
+test('scripts (-p, SDK) never pull', async ($, on) => {
+  store(on, { refreshToken: 'r1' })
+  const calls: string[] = []
+  on('http.fetch', (_, e) => { calls.push(e.url); return ok({}) })
+  engine(on)
+  await $.session.start({ cwd: '/', surface: null, isInteractive: false })
+  await settle()
+
+  expect(calls).toEqual([])
+})
+
 test('after a prompt the desktop card stays and the terminal line goes', async ($, on) => {
   store(on, { refreshToken: 'r1' })
   on('http.fetch', (_, e) =>

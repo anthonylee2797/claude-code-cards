@@ -39,4 +39,5 @@ export type Card = SeasonCard | LegendCard
 export type PullResult =
   | { card: Card; owned: number; total: number }
   | { status: 'set_complete'; total: number }
-  | { status: 'wait'; next_at: string } // already pulled this 12-hour window; ISO time the next one opens
+  // Already pulled this 12-hour window: next_at is the ISO time the next one opens; card is the one pulled (0003+).
+  | { status: 'wait'; next_at: string; card?: Card; owned?: number; total?: number }

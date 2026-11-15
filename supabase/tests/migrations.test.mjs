@@ -52,7 +52,7 @@ for (let i = 1; i <= cards.length; i++) {
   if (i === 1) {
     const again = await pull()
     const next = (await db.query(`select upper(public.pull_window(now())) t`)).rows[0].t
-    assert(again.status === 'wait' && Date.parse(again.next_at) === next.getTime() && !('card' in again), 'second pull in a window waits ' + JSON.stringify(again))
+    assert(again.status === 'wait' && Date.parse(again.next_at) === next.getTime() && again.card.id === r.card.id && again.owned === 1 && again.total === cards.length, 'second pull in a window waits ' + JSON.stringify(again))
   }
   await nextWindow()
   assert(r.owned === i && r.total === cards.length && !seen.has(r.card.id), 'pull ' + JSON.stringify(r))

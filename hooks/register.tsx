@@ -60,6 +60,8 @@ function hide($: EngineInterface) {
 }
 
 const pad = (n: number) => String(n).padStart(3, '0')
+// The card this session can show: its own pull, or (on 'wait') the one pulled earlier this window.
+const shownCard = (p: PullResult) => 'card' in p && p.card && p.total ? { card: p.card, total: p.total } : null
 const hoursUntil = (at: string) => Math.max(1, Math.ceil((Date.parse(at) - Date.now()) / 3_600_000))
 
 export const register: Register = on => {
@@ -96,15 +98,21 @@ export const register: Register = on => {
 
   on('command.run', { command: 'card' }, () => {
     if (!pull) return { text: 'No card pulled yet this session.' }
-    if ('next_at' in pull) return { text: `You already pulled a card this window. Next card in about ${hoursUntil(pull.next_at)}h.` }
-    if (!('card' in pull)) return { text: `Set complete ${pull.total}/${pull.total}` }
-    const { card, total } = pull
-    return { text: `${TIERS[card.tier].label} #${pad(card.number)}/${total} ${card.name}` }
+    const shown = shownCard(pull)
+    if ('next_at' in pull) {
+      const next = `Next card in about ${hoursUntil(pull.next_at)}h.`
+      if (!shown) return { text: `You already pulled a card this window. ${next}` }
+      return { text: `${TIERS[shown.card.tier].label} #${pad(shown.card.number)}/${shown.total} ${shown.card.name} · ${next}` }
+    }
+    if (!shown) return { text: `Set complete ${pull.total}/${pull.total}` }
+    return { text: `${TIERS[shown.card.tier].label} #${pad(shown.card.number)}/${shown.total} ${shown.card.name}` }
   })
 
   // The text above stays the row's fallback; every surface that draws this gets the full card.
-  on('ui.render', { component: 'CommandOutput', props: { command: 'card' } }, ($, e, next) =>
-    pull && 'card' in pull ? cardView($, e, pull.card, pull.total) : next(e))
+  on('ui.render', { component: 'CommandOutput', props: { command: 'card' } }, ($, e, next) => {
+    const shown = pull && shownCard(pull)
+    return shown ? cardView($, e, shown.card, shown.total) : next(e)
+  })
 
   // plugin.json is the one place the version lives; $.plugin carries no version.
   on('command.run', { command: 'nba-version' }, async $ => {
@@ -149,9 +157,25 @@ export const register: Register = on => {
     if (!isShown || isPromptSent || !pull || e.props.hasSurvey) return next(e)
     const below = await next(e)
     const { Box, Button, Text } = $.ui.resolve(e)
-    // 'wait': already pulled this window, so just say when the next card comes.
+    // 'wait': already pulled this window (maybe by another session), so one line: that card and when the next comes.
     if ('next_at' in pull) {
-      return <Box flexDirection="column"><Text dimColor>🏀 Next card in about {hoursUntil(pull.next_at)}h · /collection to see yours</Text>{below}</Box>
+      const { card } = pull
+      const tier = card && TIERS[card.tier]
+      return (
+        <Box flexDirection="column">
+          <Box>
+            {card && tier && <>
+              <Text dimColor>This window's card: </Text>
+              <Text bold color="black" backgroundColor={tier.color}> {tier.label} </Text>
+              <Text dimColor> #{pad(card.number)} </Text>
+              <Text bold>{card.name}</Text>
+              <Text dimColor> · </Text>
+            </>}
+            <Text dimColor>Next card in about {hoursUntil(pull.next_at)}h · {card ? '/card to see it' : '/collection to see yours'}</Text>
+          </Box>
+          {below}
+        </Box>
+      )
     }
     if (!pull.total) return below // no cards seeded yet: nothing worth showing
     if (e.surface === 'terminal') return <Box flexDirection="column">{pullLine($, e, pull)}{below}</Box>

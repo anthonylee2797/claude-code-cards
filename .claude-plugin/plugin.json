@@ -1,7 +1,8 @@
 {
   "name": "nba-cards",
-  "version": "0.11.0",
+  "version": "0.11.1",
   "description": "Pull a random collectible NBA card every time you start a Claude Code session. Shows in the band above the prompt.",
   "author": { "name": "Anthony Lee" },
-  "license": "MIT"
+  "license": "MIT",
+  "types": "./types/index.d.ts"
 }

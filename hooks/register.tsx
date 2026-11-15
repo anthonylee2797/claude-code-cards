@@ -1,3 +1,4 @@
+import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
 import type { Card, PullResult, Tier } from '../shared/types'
@@ -16,10 +17,10 @@ const TIERS: Record<Tier, { label: string; color: string }> = {
   legend: { label: 'ALL-TIME LEGEND', color: 'magenta' },
 }
 
-let isShown = true
-// Every session shows the band (the new card, or this window's) until the first prompt sent after it appeared.
-// The desktop starts the session on the first message, so that message comes before the pull and doesn't count.
-let isPromptSent = false
+// Every session shows the band (the new card, or this window's) until Hide or the first prompt sent after it
+// appeared: the desktop starts the session on the first message, which comes before the pull and doesn't count.
+// In $.state, not a module variable, so a plugin reload mid-session doesn't bring the band back.
+const isDismissed = atom({ plugin: 'nba-cards', key: 'isDismissed' } as const, false)
 let pull: PullResult | null = null
 // shortcut: the access token expires after an hour, so /collection fails in longer sessions; refresh on 401 if users hit it.
 let auth: { token: string; userId: string } | null = null
@@ -75,10 +76,6 @@ async function loadProfile($: EngineInterface) {
   $.ui.invalidate('ui.render')
 }
 
-function hide($: EngineInterface) {
-  isShown = false
-  $.ui.invalidate('ui.render')
-}
 
 const pad = (n: number) => String(n).padStart(3, '0')
 // The card this session can show: its own pull, or (on 'wait') the one pulled earlier this window.
@@ -86,16 +83,13 @@ const shownCard = (p: PullResult) => 'card' in p && p.card && p.total ? { card: 
 const hoursUntil = (at: string) => Math.max(1, Math.ceil((Date.parse(at) - Date.now()) / 3_600_000))
 
 export const register: Register = on => {
-  isShown = true
-  isPromptSent = false
   pull = null
   auth = null
   owned = []
   publicId = null
 
-  on('prompt.submit', ($, e, next) => {
-    if (pull) isPromptSent = true
-    $.ui.invalidate('ui.render')
+  on('prompt.submit', async ($, e, next) => {
+    if (pull) await update($, isDismissed, () => true)
     return next(e)
   }).catch(($, e, next) => next(e)) // a throw here must never block the prompt
 
@@ -105,7 +99,6 @@ export const register: Register = on => {
     await $.command.register({ name: 'nba-version', description: 'Show the installed nba-cards version' })
     // No isInteractive check: the desktop app runs sessions through the SDK and reports false.
     // session.start also fires on plugin reloads and worker restarts; the server answers those with 'wait'.
-    // shortcut: a reload mid-session clears the card on screen (the server only says 'wait'); keep the pull in $.store if users notice.
     // Offline, Supabase down, sign-ins off: stay silent, the band just never shows.
     pullCard($).then(
       result => {
@@ -122,13 +115,14 @@ export const register: Register = on => {
   on('command.run', { command: 'card' }, () => {
     if (!pull) return { text: 'No card pulled yet this session.' }
     const shown = shownCard(pull)
-    if ('next_at' in pull) {
-      const next = `Next pull in about ${hoursUntil(pull.next_at)}h.`
-      if (!shown) return { text: `You already pulled a card this window. ${next}` }
-      return { text: `${TIERS[shown.card.tier].label} #${pad(shown.card.number)}/${shown.total} ${shown.card.name} · ${next}` }
-    }
-    if (!shown) return { text: `Set complete ${pull.total}/${pull.total}` }
-    return { text: `${TIERS[shown.card.tier].label} #${pad(shown.card.number)}/${shown.total} ${shown.card.name}` }
+    // A session left open past the window's end: the next card is already waiting.
+    const isReady = 'next_at' in pull && Date.parse(pull.next_at) <= Date.now()
+    const next = !('next_at' in pull) ? ''
+      : isReady ? 'A new card is ready: start a new session to pull it.'
+      : `Next pull in about ${hoursUntil(pull.next_at)}h.`
+    if (!shown) return { text: !next ? `Set complete ${pull.total}/${pull.total}` : isReady ? next : `You already pulled a card this window. ${next}` }
+    const line = `${TIERS[shown.card.tier].label} #${pad(shown.card.number)}/${shown.total} ${shown.card.name}`
+    return { text: next ? `${line} · ${next}` : line }
   })
 
   // The text above stays the row's fallback; every surface that draws this gets the full card.
@@ -177,7 +171,7 @@ export const register: Register = on => {
   })
 
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
-    if (!isShown || isPromptSent || !pull || e.props.hasSurvey) return next(e)
+    if (!pull || e.props.hasSurvey || (await read($, isDismissed))) return next(e)
     const below = await next(e)
     const { Box, Button, Text } = $.ui.resolve(e)
     // 'wait': already pulled this window (maybe by another session), so one line: that card and when the next comes.
@@ -207,7 +201,7 @@ export const register: Register = on => {
     }
     if (!pull.total) return below // no cards seeded yet: nothing worth showing
     if (e.surface === 'terminal') return <Box flexDirection="column">{pullLine($, e, pull)}{below}</Box>
-    const hideButton = <Button key="hide" label="Hide" onPress={() => hide($)} />
+    const hideButton = <Button key="hide" label="Hide" onPress={() => update($, isDismissed, () => true)} />
 
     if (!('card' in pull)) {
       return (

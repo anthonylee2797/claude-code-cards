@@ -133,6 +133,30 @@ test('already pulled this window: the band and /card say when the next one comes
   expect((await $.command.run({ command: 'card' })).text).toBe('You already pulled a card this window. Next card in about 5h.')
 })
 
+test('already pulled by another session: the band and /card show that card', async ($, on) => {
+  store(on, { refreshToken: 'r1' })
+  const nextAt = new Date(Date.now() + 5 * 3_600_000 - 60_000).toISOString()
+  on('http.fetch', (_, e) => ok(e.url.includes('pull_card')
+    ? { status: 'wait', next_at: nextAt, card: CURRY, owned: 3, total: 155 }
+    : { access_token: 'a', refresh_token: 'r' }))
+  engine(on)
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  await settle()
+
+  for (const surface of SURFACES) {
+    const ui = await $.ui.mount({ ...BAND, surface })
+    expect(await ui.find({ type: 'Text', text: /This window's card/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /Stephen Curry/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /Next card in about 5h/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /REB/ })).toBeUndefined()
+    await ui.unmount()
+  }
+  expect((await $.command.run({ command: 'card' })).text).toBe('ALL-STAR #023/155 Stephen Curry · Next card in about 5h.')
+  const output = await $.ui.mount({ ...OUTPUT, surface: 'desktop' })
+  expect(await output.find({ type: 'Text', text: /REB/ })).toBeDefined()
+  await output.unmount()
+})
+
 test('a second session.start (reload, worker restart) keeps the card on screen', async ($, on) => {
   store(on, { refreshToken: 'r1' })
   let pulls = 0

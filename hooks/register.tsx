@@ -161,18 +161,20 @@ export const register: Register = on => {
     if ('next_at' in pull) {
       const { card } = pull
       const tier = card && TIERS[card.tier]
+      const isTerminal = e.surface === 'terminal'
+      // No fragment: the desktop lays a fragment out as its own column, which broke the line apart.
+      const parts = [
+        card && tier && <Text key="t" dimColor>This window's card: </Text>,
+        card && tier && <Text key="b" bold weight="bold" size="caption" color="black" backgroundColor={tier.color}> {tier.label} </Text>,
+        card && <Text key="n" dimColor size="footnote">#{pad(card.number)}</Text>,
+        card && <Text key="c" bold weight="bold">{card.name}</Text>,
+        <Text key="x" dimColor size="footnote">{card ? '· ' : ''}Next card in about {hoursUntil(pull.next_at)}h · {card ? '/card to see it' : '/collection to see yours'}</Text>,
+      ]
       return (
-        <Box flexDirection="column">
-          <Box>
-            {card && tier && <>
-              <Text dimColor>This window's card: </Text>
-              <Text bold color="black" backgroundColor={tier.color}> {tier.label} </Text>
-              <Text dimColor> #{pad(card.number)} </Text>
-              <Text bold>{card.name}</Text>
-              <Text dimColor> · </Text>
-            </>}
-            <Text dimColor>Next card in about {hoursUntil(pull.next_at)}h · {card ? '/card to see it' : '/collection to see yours'}</Text>
-          </Box>
+        <Box flexDirection="column" gap={isTerminal ? undefined : 'sm'}>
+          {isTerminal
+            ? <Box>{parts.map((p, i) => i ? [<Text key={'s' + i}> </Text>, p] : p)}</Box>
+            : <Box flexDirection="row" gap="sm" alignItems="center">{parts}</Box>}
           {below}
         </Box>
       )

@@ -17,7 +17,7 @@ const BAND = { plugin: 'nba-cards', component: 'AbovePrompt', props: {
 } } as const
 const SURFACES = ['terminal', 'desktop'] as const
 // The pull runs in the background after session.start; let the mocked fetches resolve.
-const settle = async () => { for (let i = 0; i < 100; i++) await Promise.resolve() }
+const settle = async () => { for (let i = 0; i < 500; i++) await Promise.resolve() }
 
 // A store in memory whose contents the test can read back.
 function store(on: On, entries: Record<string, unknown> = {}) {
@@ -41,15 +41,18 @@ test('first session signs up, saves the token and shows the card', async ($, on)
   const calls: string[] = []
   on('http.fetch', (_, e) => {
     calls.push(e.url.replace(/^https:\/\/[^/]+/, '') + ' ' + (e.init?.headers?.authorization ?? ''))
-    if (e.url.includes('/auth/v1/signup')) return ok({ access_token: 'a1', refresh_token: 'r1' })
+    if (e.url.includes('/auth/v1/signup')) return ok({ access_token: 'a1', refresh_token: 'r1', user: { id: 'u1' } })
+    if (e.url.includes('/profiles')) return ok([{ public_id: 'hoop-7k2f' }])
     return ok({ card: CURRY, owned: 47, total: 155 })
   })
   engine(on)
   await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
   await settle()
 
-  expect(calls).toEqual(['/auth/v1/signup ', '/rest/v1/rpc/pull_card Bearer a1'])
+  expect(calls).toEqual(['/auth/v1/signup ', '/rest/v1/rpc/pull_card Bearer a1',
+    '/rest/v1/profiles?select=public_id&user_id=eq.u1 Bearer a1'])
   expect(saved.refreshToken).toBe('r1')
+  expect(saved.publicId).toBe('hoop-7k2f')
   for (const surface of SURFACES) {
     const ui = await $.ui.mount({ ...BAND, surface })
     expect((await ui.find({ type: 'Text', text: /Stephen Curry/ }))?.text).toBe('Stephen Curry')
@@ -58,6 +61,7 @@ test('first session signs up, saves the token and shows the card', async ($, on)
   const desktop = await $.ui.mount({ ...BAND, surface: 'desktop' })
   expect(await desktop.find({ type: 'Text', text: /#023\/155/ })).toBeDefined()
   expect(await desktop.find({ type: 'Text', text: /47\/155 collected/ })).toBeDefined()
+  expect((await desktop.find({ type: 'Link' }))?.props.href).toBe('https://claude-code-cards.vercel.app/u/hoop-7k2f')
   await desktop.unmount()
   // The terminal gets one line, no bordered card.
   const terminal = await $.ui.mount({ ...BAND, surface: 'terminal' })
@@ -66,6 +70,7 @@ test('first session signs up, saves the token and shows the card', async ($, on)
   expect(await terminal.find({ type: 'Text', text: /ALL-STAR/ })).toBeDefined()
   expect(await terminal.find({ type: 'Text', text: /▰/ })).toBeDefined()
   expect(await terminal.find({ type: 'Text', text: /REB/ })).toBeUndefined()
+  expect(await terminal.find({ type: 'Link' })).toBeDefined()
   await terminal.unmount()
 })
 
@@ -134,7 +139,7 @@ test('already pulled this window: the band and /card say when the next one comes
 })
 
 test('already pulled by another session: the band and /card show that card', async ($, on) => {
-  store(on, { refreshToken: 'r1' })
+  store(on, { refreshToken: 'r1', publicId: 'hoop-7k2f' })
   const nextAt = new Date(Date.now() + 5 * 3_600_000 - 60_000).toISOString()
   on('http.fetch', (_, e) => ok(e.url.includes('pull_card')
     ? { status: 'wait', next_at: nextAt, card: CURRY, owned: 3, total: 155 }
@@ -149,6 +154,7 @@ test('already pulled by another session: the band and /card show that card', asy
     expect(await ui.find({ type: 'Text', text: /Stephen Curry/ })).toBeDefined()
     expect(await ui.find({ type: 'Text', text: /Next pull in about 5h/ })).toBeDefined()
     expect(await ui.find({ type: 'Text', text: /REB/ })).toBeUndefined()
+    expect((await ui.find({ type: 'Link' }))?.props.href).toBe('https://claude-code-cards.vercel.app/u/hoop-7k2f')
     await ui.unmount()
   }
   expect((await $.command.run({ command: 'card' })).text).toBe('ALL-STAR #023/155 Stephen Curry · Next pull in about 5h.')
@@ -253,7 +259,7 @@ test('/collection reads the user\'s own pulls with the session token and lists t
 
   expect((await $.command.run({ command: 'collection' })).text).toBe('Collection: 2 cards.')
   // No second sign-in: the pull's token is reused.
-  expect(calls.slice(2)).toEqual(['/rest/v1/pulls?select=cards(number,name,tier)&user_id=eq.u1 Bearer a2'])
+  expect(calls.slice(2).filter(c => !c.includes('/profiles'))).toEqual(['/rest/v1/pulls?select=cards(number,name,tier)&user_id=eq.u1 Bearer a2'])
   for (const surface of ALL_SURFACES) {
     const ui = await $.ui.mount({ ...PANE, surface })
     expect(await ui.find({ type: 'Text', text: /2\/155 collected/ })).toBeDefined()

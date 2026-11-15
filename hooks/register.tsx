@@ -6,6 +6,8 @@ import type { Card, PullResult, Tier } from '../shared/types'
 const SUPABASE_URL = 'https://taeiympniwgxcpynlbsh.supabase.co'
 const PUBLISHABLE_KEY = 'sb_publishable_MKquRgBdbxG1-XC7wmLBTA_2sJc0gHD'
 const TOKEN_KEY = 'refreshToken'
+const PROFILE_KEY = 'publicId'
+const SITE_URL = 'https://claude-code-cards.vercel.app'
 
 const TIERS: Record<Tier, { label: string; color: string }> = {
   common: { label: 'SILVER', color: 'gray' },
@@ -22,6 +24,8 @@ let pull: PullResult | null = null
 let auth: { token: string; userId: string } | null = null
 type Owned = Pick<Card, 'number' | 'name' | 'tier'>
 let owned: Owned[] = []
+// The web profile id (hoop-xxxx); kept in the store since it never changes for this login.
+let publicId: string | null = null
 const PANE = 'collection'
 
 async function post($: EngineInterface, path: string, body: unknown, token?: string) {
@@ -54,6 +58,22 @@ async function ownedCards($: EngineInterface, { token, userId }: NonNullable<typ
   return (JSON.parse(res.text) as { cards: Owned }[]).map(r => r.cards).sort((a, b) => a.number - b.number)
 }
 
+/** Loads this login's public profile id once, so the band can link to the web collection. */
+async function loadProfile($: EngineInterface) {
+  const saved = await $.store.get(PROFILE_KEY)
+  if (typeof saved === 'string') publicId = saved
+  else if (auth) {
+    const res = await $.http.fetch(`${SUPABASE_URL}/rest/v1/profiles?select=public_id&user_id=eq.${auth.userId}`, {
+      headers: { apikey: PUBLISHABLE_KEY, authorization: `Bearer ${auth.token}` },
+    })
+    const id = res.ok ? (JSON.parse(res.text) as { public_id?: string }[])[0]?.public_id : undefined
+    if (typeof id !== 'string') return
+    await $.store.set(PROFILE_KEY, id)
+    publicId = id
+  }
+  $.ui.invalidate('ui.render')
+}
+
 function hide($: EngineInterface) {
   isShown = false
   $.ui.invalidate('ui.render')
@@ -70,6 +90,7 @@ export const register: Register = on => {
   pull = null
   auth = null
   owned = []
+  publicId = null
 
   on('prompt.submit', ($, e, next) => {
     isPromptSent = true
@@ -90,9 +111,10 @@ export const register: Register = on => {
         if ('next_at' in result && pull) return // never replace what this session already shows
         pull = result
         $.ui.invalidate('ui.render')
+        return loadProfile($)
       },
       () => {},
-    )
+    ).catch(() => {}) // no profile link is fine
     return next(e)
   })
 
@@ -170,12 +192,13 @@ export const register: Register = on => {
         card && <Text key="c" bold weight="bold">{card.name}</Text>,
         <Text key="x" dimColor size="footnote">{card
           ? `· /card to see it · Next pull in about ${hoursUntil(pull.next_at)}h`
-          : `Next pull in about ${hoursUntil(pull.next_at)}h · /collection to see your cards`}</Text>,
+          : `Next pull in about ${hoursUntil(pull.next_at)}h`}</Text>,
+        profileLink($, e),
       ]
       return (
         <Box flexDirection="column" gap={isTerminal ? undefined : 'sm'}>
           {isTerminal
-            ? <Box>{parts.map((p, i) => i ? [<Text key={'s' + i}> </Text>, p] : p)}</Box>
+            ? <Box>{parts.filter(Boolean).map((p, i) => i ? [<Text key={'s' + i}> </Text>, p] : p)}</Box>
             : <Box flexDirection="row" gap="sm" alignItems="center">{parts}</Box>}
           {below}
         </Box>
@@ -207,6 +230,7 @@ export const register: Register = on => {
             <Text size="caption" weight="bold" color="black" backgroundColor="green"> NEW </Text>
             <Text size="footnote" tabular>{owned}/{total} collected</Text>
             {progress($, e, owned, total)}
+            {profileLink($, e)}
             {hideButton}
           </Box>)}
         {below}
@@ -238,8 +262,17 @@ function pullLine($: EngineInterface, e: Parameters<EngineInterface['ui']['resol
       <Text bold color="black" backgroundColor="green"> NEW </Text>
       <Text dimColor> {owned}/{total} </Text>
       {progress($, e, owned, total)}
+      {publicId && <Text dimColor>  </Text>}
+      {profileLink($, e)}
     </Box>
   )
+}
+
+/** "Your collection ↗", linking to this login's web profile (anonymous logins have one too). */
+function profileLink($: EngineInterface, e: Parameters<EngineInterface['ui']['resolve']>[0]) {
+  if (!publicId) return null
+  const { Link, Text } = $.ui.resolve(e)
+  return <Text key="profile" dimColor size="footnote"><Link href={`${SITE_URL}/u/${publicId}`}>Your collection ↗</Link></Text>
 }
 
 function progress($: EngineInterface, e: Parameters<EngineInterface['ui']['resolve']>[0], owned: number, total: number) {

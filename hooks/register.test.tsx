@@ -229,6 +229,52 @@ test('a prompt sent before the pull arrives (the desktop starts on the first mes
   await after.unmount()
 })
 
+test('the band stays dismissed after a plugin reload (the flag lives in $.state)', async ($, on) => {
+  store(on, { refreshToken: 'r1' })
+  on('http.fetch', (_, e) =>
+    ok(e.url.includes('pull_card') ? { card: CURRY, owned: 3, total: 155 } : { access_token: 'a', refresh_token: 'r' }))
+  engine(on)
+  on('prompt.submit', (_, e) => ({ text: e.text }))
+  const writes: unknown[] = []
+  on('state.set', ($, e, next) => { writes.push([e.plugin, e.key, e.value]); return next(e) })
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: false })
+  await settle()
+  await $.prompt.submit({ text: 'seen it' })
+
+  // What a reload keeps: the session's $.state. Module variables would have started over.
+  expect(writes).toEqual([['nba-cards', 'isDismissed', true]])
+})
+
+test('a dismissal stored before a reload keeps the band hidden when session.start runs again', async ($, on) => {
+  store(on, { refreshToken: 'r1' })
+  on('state.get', () => ({ value: { value: true, version: 1 } }))
+  on('http.fetch', (_, e) => ok(e.url.includes('pull_card')
+    ? { status: 'wait', next_at: '2099-01-01T00:00:00Z', card: CURRY, owned: 3, total: 155 }
+    : { access_token: 'a', refresh_token: 'r' }))
+  engine(on)
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: false })
+  await settle()
+
+  for (const surface of SURFACES) {
+    const ui = await $.ui.mount({ ...BAND, surface })
+    expect((await ui.find({ type: 'Text' }))?.text).toBe('engine')
+    await ui.unmount()
+  }
+})
+
+test('/card in a session left open past the window says a new card is ready', async ($, on) => {
+  store(on, { refreshToken: 'r1' })
+  on('http.fetch', (_, e) => ok(e.url.includes('pull_card')
+    ? { status: 'wait', next_at: new Date(Date.now() - 60_000).toISOString(), card: CURRY, owned: 3, total: 155 }
+    : { access_token: 'a', refresh_token: 'r' }))
+  engine(on)
+  await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
+  await settle()
+
+  expect((await $.command.run({ command: 'card' })).text)
+    .toBe('ALL-STAR #023/155 Stephen Curry · A new card is ready: start a new session to pull it.')
+})
+
 const OUTPUT = { plugin: 'nba-cards', component: 'CommandOutput', props: { command: 'card', args: '', text: '', isErrored: false } } as const
 const PANE = { plugin: 'nba-cards', component: 'Pane', requestId: 'collection', props: {
   title: 'Collection', isFocused: false, bodyColumns: 40, placement: 'dock', scroll: { offset: 0, bodyRows: 20 }, view: {},

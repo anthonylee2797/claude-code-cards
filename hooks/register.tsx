@@ -100,7 +100,7 @@ export const register: Register = on => {
     if (!pull) return { text: 'No card pulled yet this session.' }
     const shown = shownCard(pull)
     if ('next_at' in pull) {
-      const next = `Next card in about ${hoursUntil(pull.next_at)}h.`
+      const next = `Next pull in about ${hoursUntil(pull.next_at)}h.`
       if (!shown) return { text: `You already pulled a card this window. ${next}` }
       return { text: `${TIERS[shown.card.tier].label} #${pad(shown.card.number)}/${shown.total} ${shown.card.name} · ${next}` }
     }
@@ -164,11 +164,13 @@ export const register: Register = on => {
       const isTerminal = e.surface === 'terminal'
       // No fragment: the desktop lays a fragment out as its own column, which broke the line apart.
       const parts = [
-        card && tier && <Text key="t" dimColor>This window's card: </Text>,
+        card && tier && <Text key="t" dimColor>You pulled </Text>,
         card && tier && <Text key="b" bold weight="bold" size="caption" color="black" backgroundColor={tier.color}> {tier.label} </Text>,
         card && <Text key="n" dimColor size="footnote">#{pad(card.number)}</Text>,
         card && <Text key="c" bold weight="bold">{card.name}</Text>,
-        <Text key="x" dimColor size="footnote">{card ? '· ' : ''}Next card in about {hoursUntil(pull.next_at)}h · {card ? '/card to see it' : '/collection to see yours'}</Text>,
+        <Text key="x" dimColor size="footnote">{card
+          ? `· /card to see it · Next pull in about ${hoursUntil(pull.next_at)}h`
+          : `Next pull in about ${hoursUntil(pull.next_at)}h · /collection to see your cards`}</Text>,
       ]
       return (
         <Box flexDirection="column" gap={isTerminal ? undefined : 'sm'}>

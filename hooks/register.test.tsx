@@ -127,10 +127,10 @@ test('already pulled this window: the band and /card say when the next one comes
 
   for (const surface of SURFACES) {
     const ui = await $.ui.mount({ ...BAND, surface })
-    expect(await ui.find({ type: 'Text', text: /Next card in about 5h/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /Next pull in about 5h/ })).toBeDefined()
     await ui.unmount()
   }
-  expect((await $.command.run({ command: 'card' })).text).toBe('You already pulled a card this window. Next card in about 5h.')
+  expect((await $.command.run({ command: 'card' })).text).toBe('You already pulled a card this window. Next pull in about 5h.')
 })
 
 test('already pulled by another session: the band and /card show that card', async ($, on) => {
@@ -145,13 +145,13 @@ test('already pulled by another session: the band and /card show that card', asy
 
   for (const surface of SURFACES) {
     const ui = await $.ui.mount({ ...BAND, surface })
-    expect(await ui.find({ type: 'Text', text: /This window's card/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /You pulled/ })).toBeDefined()
     expect(await ui.find({ type: 'Text', text: /Stephen Curry/ })).toBeDefined()
-    expect(await ui.find({ type: 'Text', text: /Next card in about 5h/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /Next pull in about 5h/ })).toBeDefined()
     expect(await ui.find({ type: 'Text', text: /REB/ })).toBeUndefined()
     await ui.unmount()
   }
-  expect((await $.command.run({ command: 'card' })).text).toBe('ALL-STAR #023/155 Stephen Curry · Next card in about 5h.')
+  expect((await $.command.run({ command: 'card' })).text).toBe('ALL-STAR #023/155 Stephen Curry · Next pull in about 5h.')
   const output = await $.ui.mount({ ...OUTPUT, surface: 'desktop' })
   expect(await output.find({ type: 'Text', text: /REB/ })).toBeDefined()
   await output.unmount()

@@ -10,7 +10,7 @@ A Claude Code plugin that greets you with a collectible NBA card when you start 
 
 ## How it works
 
-You get one new card per 12-hour window (12am–12pm and 12pm–12am Eastern): the first interactive session in each window pulls a card you don't own yet from Series 1 (155 cards, no duplicates) and shows it above the prompt. Later sessions in the same window show nothing, and `/card` tells you when the next card comes. Scripts (`claude -p`, the SDK) never pull. The card shows in the desktop app as a full card until you press Hide, in the terminal as one "You pulled …" line that clears when you send your first prompt. The first session signs you in anonymously; the plugin keeps the refresh token in its own store, so your collection carries over between sessions. Offline, or when the server is down, it shows nothing.
+You get one new card per 12-hour window (12am–12pm and 12pm–12am Eastern): the first session in each window pulls a card you don't own yet from Series 1 (155 cards, no duplicates) and shows it above the prompt. Later sessions in the same window show one line saying when the next card comes. The band shows in the desktop app as a full card, in the terminal as one "You pulled …" line, and clears when you send your first prompt (or press Hide); `/card` shows it again. Any session can use up the window's card, scripts (`claude -p`, the SDK) included. The first session signs you in anonymously; the plugin keeps the refresh token in its own store, so your collection carries over between sessions. Offline, or when the server is down, it shows nothing.
 
 **Claude Code on the web:** untested. The plugin needs a hooks-module host with network access to `*.supabase.co`, so it may not show there.
 

@@ -116,7 +116,7 @@ test('offline or sign-ins off: nothing shows', async ($, on) => {
   await ui.unmount()
 })
 
-test('already pulled this window: nothing shows, /card says when the next one comes', async ($, on) => {
+test('already pulled this window: the band and /card say when the next one comes', async ($, on) => {
   store(on, { refreshToken: 'r1' })
   const nextAt = new Date(Date.now() + 5 * 3_600_000 - 60_000).toISOString()
   on('http.fetch', (_, e) =>
@@ -127,7 +127,7 @@ test('already pulled this window: nothing shows, /card says when the next one co
 
   for (const surface of SURFACES) {
     const ui = await $.ui.mount({ ...BAND, surface })
-    expect((await ui.find({ type: 'Text' }))?.text).toBe('engine')
+    expect(await ui.find({ type: 'Text', text: /Next card in about 5h/ })).toBeDefined()
     await ui.unmount()
   }
   expect((await $.command.run({ command: 'card' })).text).toBe('You already pulled a card this window. Next card in about 5h.')
@@ -152,18 +152,18 @@ test('a second session.start (reload, worker restart) keeps the card on screen',
   await ui.unmount()
 })
 
-test('scripts (-p, SDK) never pull', async ($, on) => {
+test('non-interactive sessions (the desktop app runs through the SDK) still pull', async ($, on) => {
   store(on, { refreshToken: 'r1' })
-  const calls: string[] = []
-  on('http.fetch', (_, e) => { calls.push(e.url); return ok({}) })
+  on('http.fetch', (_, e) =>
+    ok(e.url.includes('pull_card') ? { card: CURRY, owned: 3, total: 155 } : { access_token: 'a', refresh_token: 'r' }))
   engine(on)
-  await $.session.start({ cwd: '/', surface: null, isInteractive: false })
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: false })
   await settle()
 
-  expect(calls).toEqual([])
+  expect((await $.command.run({ command: 'card' })).text).toBe('ALL-STAR #023/155 Stephen Curry')
 })
 
-test('after a prompt the desktop card stays and the terminal line goes', async ($, on) => {
+test('after the first prompt the band goes on every surface', async ($, on) => {
   store(on, { refreshToken: 'r1' })
   on('http.fetch', (_, e) =>
     ok(e.url.includes('pull_card') ? { card: CURRY, owned: 3, total: 155 } : { access_token: 'a', refresh_token: 'r' }))
@@ -173,12 +173,11 @@ test('after a prompt the desktop card stays and the terminal line goes', async (
   await settle()
   await $.prompt.submit({ text: 'test' })
 
-  const desktop = await $.ui.mount({ ...BAND, surface: 'desktop' })
-  expect(await desktop.find({ type: 'Text', text: /Stephen Curry/ })).toBeDefined()
-  await desktop.unmount()
-  const terminal = await $.ui.mount({ ...BAND, surface: 'terminal' })
-  expect((await terminal.find({ type: 'Text' }))?.text).toBe('engine')
-  await terminal.unmount()
+  for (const surface of SURFACES) {
+    const ui = await $.ui.mount({ ...BAND, surface })
+    expect((await ui.find({ type: 'Text' }))?.text).toBe('engine')
+    await ui.unmount()
+  }
 })
 
 const OUTPUT = { plugin: 'nba-cards', component: 'CommandOutput', props: { command: 'card', args: '', text: '', isErrored: false } } as const

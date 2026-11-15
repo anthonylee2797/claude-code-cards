@@ -15,7 +15,7 @@ const TIERS: Record<Tier, { label: string; color: string }> = {
 }
 
 let isShown = true
-// The terminal shows the pull as one line until the first prompt; the desktop keeps its card until Hide.
+// Every session shows the band (the new card, or when the next one comes) until its first prompt.
 let isPromptSent = false
 let pull: PullResult | null = null
 // shortcut: the access token expires after an hour, so /collection fails in longer sessions; refresh on 401 if users hit it.
@@ -60,6 +60,7 @@ function hide($: EngineInterface) {
 }
 
 const pad = (n: number) => String(n).padStart(3, '0')
+const hoursUntil = (at: string) => Math.max(1, Math.ceil((Date.parse(at) - Date.now()) / 3_600_000))
 
 export const register: Register = on => {
   isShown = true
@@ -78,8 +79,7 @@ export const register: Register = on => {
     await $.command.register({ name: 'card', description: 'Show the card you pulled this session' })
     await $.command.register({ name: 'collection', description: 'List the cards you own' })
     await $.command.register({ name: 'nba-version', description: 'Show the installed nba-cards version' })
-    // Scripts (-p, SDK) never see the band, so they must not use up the window's card.
-    if (!e.isInteractive) return next(e)
+    // No isInteractive check: the desktop app runs sessions through the SDK and reports false.
     // session.start also fires on plugin reloads and worker restarts; the server answers those with 'wait'.
     // shortcut: a reload mid-session clears the card on screen (the server only says 'wait'); keep the pull in $.store if users notice.
     // Offline, Supabase down, sign-ins off: stay silent, the band just never shows.
@@ -96,10 +96,7 @@ export const register: Register = on => {
 
   on('command.run', { command: 'card' }, () => {
     if (!pull) return { text: 'No card pulled yet this session.' }
-    if ('next_at' in pull) {
-      const hours = Math.max(1, Math.ceil((Date.parse(pull.next_at) - Date.now()) / 3_600_000))
-      return { text: `You already pulled a card this window. Next card in about ${hours}h.` }
-    }
+    if ('next_at' in pull) return { text: `You already pulled a card this window. Next card in about ${hoursUntil(pull.next_at)}h.` }
     if (!('card' in pull)) return { text: `Set complete ${pull.total}/${pull.total}` }
     const { card, total } = pull
     return { text: `${TIERS[card.tier].label} #${pad(card.number)}/${total} ${card.name}` }
@@ -149,12 +146,14 @@ export const register: Register = on => {
   })
 
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
-    // total 0 means no cards seeded yet: nothing worth showing.
-    // 'wait': already pulled this window, so nothing shows.
-    if (!isShown || !pull || 'next_at' in pull || !pull.total || e.props.hasSurvey) return next(e)
-    if (e.surface === 'terminal' && isPromptSent) return next(e)
+    if (!isShown || isPromptSent || !pull || e.props.hasSurvey) return next(e)
     const below = await next(e)
     const { Box, Button, Text } = $.ui.resolve(e)
+    // 'wait': already pulled this window, so just say when the next card comes.
+    if ('next_at' in pull) {
+      return <Box flexDirection="column"><Text dimColor>🏀 Next card in about {hoursUntil(pull.next_at)}h · /collection to see yours</Text>{below}</Box>
+    }
+    if (!pull.total) return below // no cards seeded yet: nothing worth showing
     if (e.surface === 'terminal') return <Box flexDirection="column">{pullLine($, e, pull)}{below}</Box>
     const hideButton = <Button key="hide" label="Hide" onPress={() => hide($)} />
 

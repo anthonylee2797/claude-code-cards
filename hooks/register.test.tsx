@@ -210,6 +210,25 @@ test('after the first prompt the band goes on every surface', async ($, on) => {
   }
 })
 
+test('a prompt sent before the pull arrives (the desktop starts on the first message) keeps the band', async ($, on) => {
+  store(on, { refreshToken: 'r1' })
+  on('http.fetch', (_, e) =>
+    ok(e.url.includes('pull_card') ? { card: CURRY, owned: 3, total: 155 } : { access_token: 'a', refresh_token: 'r' }))
+  engine(on)
+  on('prompt.submit', (_, e) => ({ text: e.text }))
+  await $.prompt.submit({ text: 'first' })
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: false })
+  await settle()
+
+  const before = await $.ui.mount({ ...BAND, surface: 'desktop' })
+  expect(await before.find({ type: 'Text', text: /Stephen Curry/ })).toBeDefined()
+  await before.unmount()
+  await $.prompt.submit({ text: 'second' })
+  const after = await $.ui.mount({ ...BAND, surface: 'desktop' })
+  expect((await after.find({ type: 'Text' }))?.text).toBe('engine')
+  await after.unmount()
+})
+
 const OUTPUT = { plugin: 'nba-cards', component: 'CommandOutput', props: { command: 'card', args: '', text: '', isErrored: false } } as const
 const PANE = { plugin: 'nba-cards', component: 'Pane', requestId: 'collection', props: {
   title: 'Collection', isFocused: false, bodyColumns: 40, placement: 'dock', scroll: { offset: 0, bodyRows: 20 }, view: {},

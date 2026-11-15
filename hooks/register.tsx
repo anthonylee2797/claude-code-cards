@@ -17,7 +17,8 @@ const TIERS: Record<Tier, { label: string; color: string }> = {
 }
 
 let isShown = true
-// Every session shows the band (the new card, or when the next one comes) until its first prompt.
+// Every session shows the band (the new card, or this window's) until the first prompt sent after it appeared.
+// The desktop starts the session on the first message, so that message comes before the pull and doesn't count.
 let isPromptSent = false
 let pull: PullResult | null = null
 // shortcut: the access token expires after an hour, so /collection fails in longer sessions; refresh on 401 if users hit it.
@@ -93,7 +94,7 @@ export const register: Register = on => {
   publicId = null
 
   on('prompt.submit', ($, e, next) => {
-    isPromptSent = true
+    if (pull) isPromptSent = true
     $.ui.invalidate('ui.render')
     return next(e)
   }).catch(($, e, next) => next(e)) // a throw here must never block the prompt

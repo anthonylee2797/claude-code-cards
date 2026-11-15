@@ -180,21 +180,21 @@ export const register: Register = on => {
       const tier = card && TIERS[card.tier]
       const isTerminal = e.surface === 'terminal'
       // No fragment: the desktop lays a fragment out as its own column, which broke the line apart.
+      // flexWrap: in a narrow pane whole pieces move to the next row instead of each wrapping inside its own column.
       const parts = [
         card && tier && <Text key="t" dimColor>You pulled </Text>,
         card && tier && <Text key="b" bold weight="bold" size="caption" color="black" backgroundColor={tier.color}> {tier.label} </Text>,
         card && <Text key="n" dimColor size="footnote">#{pad(card.number)}</Text>,
         card && <Text key="c" bold weight="bold">{card.name}</Text>,
-        <Text key="x" dimColor size="footnote">{card
-          ? `· /card to see it · Next pull in about ${hoursUntil(pull.next_at)}h`
-          : `Next pull in about ${hoursUntil(pull.next_at)}h`}</Text>,
+        card && <Text key="x" dimColor size="footnote">· /card to see it</Text>,
+        <Text key="w" dimColor size="footnote">{card ? '· ' : ''}Next pull in about {hoursUntil(pull.next_at)}h</Text>,
         profileLink($, e),
       ]
       return (
         <Box flexDirection="column" gap={isTerminal ? undefined : 'sm'}>
           {isTerminal
             ? <Box>{parts.filter(Boolean).map((p, i) => i ? [<Text key={'s' + i}> </Text>, p] : p)}</Box>
-            : <Box flexDirection="row" gap="sm" alignItems="center">{parts}</Box>}
+            : <Box flexDirection="row" flexWrap="wrap" gap="sm" alignItems="center">{parts}</Box>}
           {below}
         </Box>
       )

@@ -1,38 +1,54 @@
 import Link from 'next/link'
-import { TIERS, type Tier } from '../../shared/types'
-import { cards, collectors } from '../lib/db'
+import { redirect } from 'next/navigation'
+import { TIERS } from '../../shared/types'
+import { cards } from '../lib/db'
+import { PACKS } from '../lib/packs'
 import { CardTile } from './card'
+import { Command } from './copy'
 
-// "9,000 pulled · 2% of collectors"; a tiny share reads "<1%" rather than "0%".
-function pulledLine(pulls: number, people: number) {
-  if (pulls === 0 || people === 0) return 'Not pulled yet'
-  const pct = (pulls / people) * 100
-  return `${pulls.toLocaleString('en-US')} pulled · ${pct < 1 ? '<1' : Math.round(pct)}% of collectors`
-}
+const REPO = 'anthonylee2797/claude-code-cards'
 
 export default async function Home({ searchParams }: { searchParams: Promise<{ tier?: string }> }) {
+  // The catalog used to live here; keep old /?tier= links working.
   const { tier } = await searchParams
-  const [all, people] = await Promise.all([cards(), collectors()])
-  const active = TIERS.find(t => t === tier)
-  const shown = active ? all.filter(c => c.tier === active) : all
-  const count = (t: Tier) => all.filter(c => c.tier === t).length
+  if (tier) redirect(`/series/${PACKS[0].slug}?tier=${encodeURIComponent(tier)}`)
+  const all = await cards()
+  // One card of each tier, rarest first, as a teaser.
+  const teaser = [...TIERS].reverse().map(t => all.find(c => c.tier === t)).filter(c => c !== undefined)
   return (
     <>
-      <h1>Series 1</h1>
-      <p className="lede">{all.length} cards. One pulled at the start of every Claude Code session.</p>
-      <nav className="tiers" aria-label="Filter by tier">
-        <Link href="/" aria-current={!active ? 'page' : undefined}>All<span>{all.length}</span></Link>
-        {TIERS.map(t => (
-          <Link key={t} href={`/?tier=${t}`} aria-current={active === t ? 'page' : undefined}>
-            {t}<span>{count(t)}</span>
-          </Link>
-        ))}
-      </nav>
+      <section className="hero">
+        <h1>An NBA card every time you start Claude Code.</h1>
+        <p className="lede">
+          A Claude Code plugin. Start a session and pull a card you don't own yet, up to 2 a day.
+          Collect all {all.length} in the {PACKS[0].name}.
+        </p>
+        <div className="cta">
+          <a href="#install" className="primary">Install the plugin</a>
+          <Link href="/series">Browse the cards</Link>
+        </div>
+      </section>
+
       <section className="grid">
-        {shown.map(c => (
-          <CardTile key={c.id} card={c} total={all.length}
-            footer={pulledLine(c.pulls, people)} />
-        ))}
+        {teaser.map(c => <CardTile key={c.id} card={c} total={all.length} />)}
+      </section>
+
+      <section id="install" className="install">
+        <h2>Install</h2>
+        <p>
+          <b>Desktop app:</b> click <b>+</b> next to the prompt box, choose <b>Plugins</b>, then <b>Add marketplace</b> and
+          enter <code>{REPO}</code>. Then choose <b>Add plugin</b> and pick <code>nba-cards</code>.
+        </p>
+        <p><b>Inside Claude Code</b> (desktop app or terminal):</p>
+        <Command text={`/plugin marketplace add ${REPO}`} />
+        <Command text="/plugin install nba-cards@claude-code-cards" />
+        <p><b>From a shell:</b></p>
+        <Command text={`claude plugin marketplace add ${REPO}`} />
+        <Command text="claude plugin install nba-cards@claude-code-cards" />
+        <p>Then start a new session. Your card shows above the prompt, with a link to your collection here.</p>
+        <p className="muted">
+          No account needed: the plugin signs you in anonymously. <a href={`https://github.com/${REPO}#privacy`}>Privacy</a> · <a href={`https://github.com/${REPO}`}>GitHub</a>
+        </p>
       </section>
     </>
   )

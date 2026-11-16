@@ -27,6 +27,32 @@ h1 { font-size: clamp(36px, 7vw, 64px); font-weight: 800; letter-spacing: -.04em
 h1 small { display: block; font-size: 18px; font-weight: 500; letter-spacing: 0; color: var(--muted); margin-top: 10px; }
 .lede { color: var(--muted); font-size: 18px; margin: 0 0 24px; }
 
+.muted { color: var(--muted); }
+.brand-row { display: flex; gap: 16px; align-items: baseline; }
+.brand-row a:not(.brand) { color: var(--muted); font-weight: 600; text-decoration: none; }
+
+.hero { max-width: 760px; margin: 16px 0 32px; }
+.cta { display: flex; flex-wrap: wrap; gap: 10px; }
+.cta a { padding: 12px 22px; border-radius: 999px; background: var(--soft); font-weight: 700; text-decoration: none; }
+.cta a.primary { background: var(--fg); color: var(--bg); }
+
+.install { max-width: 760px; }
+.install h2 { font-size: 32px; letter-spacing: -.03em; margin: 0 0 12px; }
+.install code { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 13px; }
+.cmd { display: flex; align-items: center; gap: 8px; padding: 6px 6px 6px 14px; margin: 0 0 8px;
+  background: var(--soft); border: 1px solid var(--line); border-radius: 12px; }
+.cmd code { flex: 1; min-width: 0; overflow-x: auto; white-space: nowrap; }
+.cmd button { padding: 6px 14px; font-size: 13px; }
+
+.packs { display: grid; gap: 16px; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
+.pack { display: flex; flex-direction: column; justify-content: flex-end; gap: 4px; min-height: 180px; padding: 20px;
+  border-radius: 20px; text-decoration: none; color: #fff;
+  background: linear-gradient(150deg, var(--legend), var(--middle)); }
+.pack .chip { align-self: flex-start; color: #fff; background: rgb(255 255 255 / .2); }
+.pack h2 { font-size: 28px; font-weight: 800; letter-spacing: -.03em; margin: 8px 0 0; }
+.pack span { opacity: .85; }
+.pack:hover { filter: brightness(1.08); }
+
 .tiers { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 28px; }
 .tiers a { padding: 8px 16px; border-radius: 999px; background: var(--soft); text-decoration: none;
   font-weight: 600; text-transform: capitalize; }

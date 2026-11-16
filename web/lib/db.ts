@@ -16,13 +16,16 @@ async function get<T>(path: string): Promise<T> {
 
 const COLS = 'id,number,name,tier,position,teams,season,games,game,date,pts,reb,ast,stl,blk,tov,fp'
 
-/** Every card in the set with how many people pulled it, ordered by number. */
+/** Every card in the set with how many people pulled it: legends first, then by number. */
 export async function cards(): Promise<(Card & { pulls: number })[]> {
   const rows = await get<(Card & { pulls: { count: number }[] })[]>(
     `cards?select=${COLS},pulls(count)&order=number`)
   // shortcut: an unseeded database shows the 5 sample cards; drop once #5 has seeded prod.
-  if (rows.length === 0) return (sample as Card[]).map(c => ({ ...c, pulls: 0 })).sort((a, b) => a.number - b.number)
-  return rows.map(r => ({ ...r, pulls: r.pulls[0]?.count ?? 0 }))
+  const all = rows.length === 0
+    ? (sample as Card[]).map(c => ({ ...c, pulls: 0 })).sort((a, b) => a.number - b.number)
+    : rows.map(r => ({ ...r, pulls: r.pulls[0]?.count ?? 0 }))
+  // Stable sort: legends move to the top, everything else keeps number order.
+  return all.sort((a, b) => Number(b.tier === 'legend') - Number(a.tier === 'legend'))
 }
 
 /** How many collectors (profiles) exist, from PostgREST's exact count header. */

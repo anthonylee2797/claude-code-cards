@@ -225,7 +225,6 @@ export const register: Register = on => {
             <Text size="caption" weight="bold" color="black" backgroundColor="green"> NEW </Text>
             <Text size="footnote" tabular>{owned}/{total} collected</Text>
             {progress($, e, owned, total)}
-            {profileLink($, e)}
             {hideButton}
           </Box>)}
         {below}
@@ -299,9 +298,11 @@ function cardView($: EngineInterface, e: Parameters<EngineInterface['ui']['resol
           <Text size="heading" weight="bold" color={isRare ? tier.color : undefined}>{card.name}</Text>
           <Text size="footnote" dimColor>{card.position} · {card.teams.join(' / ')} · {when}</Text>
           <Box flexGrow={1} />
+          {footer ? profileLink($, e) : null}
           <Text size="caption" dimColor tabular>#{pad(card.number)}/{total}</Text>
         </Box>
-        <Box gap="md" alignItems="center">
+        {/* flexWrap: in a narrow pane whole pieces move to the next row instead of each wrapping inside its own column. */}
+        <Box gap="md" alignItems="center" flexWrap="wrap">
           {stats.map(([k, v]) => (
             <Box key={k} gap="xs">
               <Text size="caption" dimColor>{k}</Text>

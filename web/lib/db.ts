@@ -5,10 +5,10 @@ import sample from '../../data/series1.sample.json'
 const URL = process.env.SUPABASE_URL ?? 'https://taeiympniwgxcpynlbsh.supabase.co'
 const KEY = process.env.SUPABASE_PUBLISHABLE_KEY ?? 'sb_publishable_MKquRgBdbxG1-XC7wmLBTA_2sJc0gHD'
 
-async function get<T>(path: string): Promise<T> {
+async function get<T>(path: string, revalidate = 60): Promise<T> {
   const res = await fetch(`${URL}/rest/v1/${path}`, {
     headers: { apikey: KEY },
-    next: { revalidate: 60 },
+    next: { revalidate },
   })
   if (!res.ok) throw new Error(`Supabase ${res.status}: ${await res.text()}`)
   return res.json()
@@ -46,6 +46,8 @@ export const VALID_ID = /^[A-Za-z0-9-]{1,39}$/
 export async function profiles(id: string): Promise<Profile[]> {
   if (!VALID_ID.test(id)) return [] // keeps the id safe to put in the PostgREST filter
   const rows = await get<{ public_id: string; github_login: string | null; pulls: { card_id: string }[] }[]>(
-    `profiles?select=public_id,github_login,pulls(card_id)&or=(public_id.eq.${id},github_login.ilike.${id})&order=created_at`)
+    `profiles?select=public_id,github_login,pulls(card_id)&or=(public_id.eq.${id},github_login.ilike.${id})&order=created_at`,
+    0) // uncached: a pull must show at once, and a stale copy made two pages of one collection disagree
+
   return rows.map(r => ({ ...r, owned: new Set(r.pulls.map(p => p.card_id)) }))
 }

@@ -7,6 +7,7 @@ You are the orchestrator for one workday. You don't build anything yourself: you
 
 - **Board:** https://github.com/users/anthonylee2797/projects/4 (columns Backlog, Ready, In progress, In review, Done).
 - **Board script:** `bash .claude/skills/workday/board.sh list` and `bash .claude/skills/workday/board.sh move <issue> "<Column>"`. GitHub can take a few seconds to show a move in `list`; trust the `#n -> Column` line `move` prints.
+- **Running an agent:** Agent tool with `subagent_type` set to the agent's name. If that fails with "Agent type … not found", run it as `general-purpose` and start the prompt with "First read `.claude/agents/<name>.md` and follow it as your instructions for this task." Say in the wrap-up that the fallback was used.
 - **Agents by label:** `agent: product-manager` → `product-manager`, `agent: staff-engineer-web` → `staff-engineer-web`, `agent: staff-engineer-backend` → `staff-engineer-backend`, `agent: designer-web` → `principal-designer-web`, `agent: designer-claude-code` → `principal-designer-claude-code`.
 
 ## Day limits (stop at the first one)
@@ -19,7 +20,7 @@ You are the orchestrator for one workday. You don't build anything yourself: you
 ## 1. Standup
 
 1. `git fetch origin` and run `board.sh list`. Open issues that have an agent label but aren't on the board go to **Ready** (the user tagged them).
-2. Sync the board with GitHub: an issue whose PR is merged or that is closed → **Done**; In progress with an open PR → **In review**; a PR closed without merging → back to **Ready** with a comment.
+2. Sync the board with GitHub: an issue whose PR is merged or that is closed → **Done**; In progress with an open PR → **In review**; a PR closed without merging → back to **Ready** with a comment. Open PRs that don't close a board issue (no `Closes #n`) aren't the team's: list them in the standup as "not on the board" and leave them alone.
 3. Unblock: for each issue labelled `blocked`, if every issue it says it's "Blocked by" is closed, remove `blocked` (`gh issue edit <n> --remove-label blocked`) and comment that it's unblocked.
 4. If the user gave an idea, run `product-manager` first to write it up, at the top of Ready.
 5. Tell the user in a few lines: Ready, blocked (and why), PRs waiting on them. Then start working without waiting for an answer.
@@ -34,7 +35,7 @@ Repeat until a day limit hits. Each round does the first of these that applies: 
 
 **B. Web PR with design changes requested** (labelled `design-changes`): run `staff-engineer-web` (worktree) with "Address the design review on PR <url> (issue #<n>) as your instructions describe." Check the branch got new commits and a reply, then swap `design-changes` back to `design-review`. After **2** change rounds on one PR, stop the loop on it: remove both labels, comment that it's waiting on the user, and leave it In review.
 
-**C. Merge** (web lane only): a PR qualifies when every changed file is in `web/` or is `HISTORY.md`, it's from `staff-engineer-web` (with `Design: approved`) or from `principal-designer-web` (no review needed), and `gh pr checks <url>` is all green. Merge it with `gh pr merge <url> --merge --delete-branch`, confirm the issue closed, `board.sh move <n> Done`, and unblock anything waiting on it. Checks still pending: leave it for a later round. Checks failing: send it back to its author like **B**, with the failing check in the comment. Vercel deploys `main` to the live site, so this is the moment it ships.
+**C. Merge** (web lane only): a PR qualifies when every changed file is in `web/` or is `HISTORY.md`, it's from `staff-engineer-web` (with `Design: approved`) or from `principal-designer-web` (no review needed), and `gh pr checks <url>` is all green. Merge it with `gh pr merge <url> --merge --delete-branch`, confirm the issue closed, `board.sh move <n> Done`, and unblock anything waiting on it. Checks still pending: leave it for a later round. Checks failing: send it back to its author like **B**, with the failing check in the comment. Vercel deploys `main` to the live site, so this is the moment it ships. Anything outside `web/` (README and other docs included) waits on the user, whichever agent made it.
 
 **D. New work from Ready:**
 
@@ -42,8 +43,8 @@ Repeat until a day limit hits. Each round does the first of these that applies: 
 2. **Pick** the first issue in Ready (board order) with no `blocked` label and one agent label. Never pick from Backlog.
 3. **Start it.** `board.sh move <n> "In progress"`, then run the agent for its label with the Agent tool, `isolation: "worktree"`, and this prompt (fill in `<n>`):
 
-   > Work GitHub issue #<n> in anthonylee2797/claude-code-cards. First read it with every comment: `gh issue view <n> --comments`. Stay in your lane as your instructions define it.
-   > - **If you can finish it:** branch `agent/<n>-<short-slug>` from `origin/main`, do the work, run your checks, add the HISTORY.md line, push, and open a PR whose body starts with `Closes #<n>` and ends with the Claude Code attribution line. Don't merge it yourself: the orchestrator decides. Then comment on the issue with the PR link and what you checked.
+   > Work GitHub issue #<n> in anthonylee2797/claude-code-cards. First read it with every comment: `gh issue view <n> --json title,body,labels,comments` (plain `--comments` can print nothing). Stay in your lane as your instructions define it. You run with no one to ask mid-task: where your instructions say to get a yes or propose first, post the proposal on the issue and stop as **If you need the user** below.
+   > - **If you can finish it:** your worktree may start on another branch, so create `agent/<n>-<short-slug>` from `origin/main` (`git fetch origin && git switch -c agent/<n>-<slug> origin/main`). Do the work, run your checks, add the HISTORY.md line with `PR_LINK` in its PR column, push, and open a PR whose body starts with `Closes #<n>` and ends with the Claude Code attribution line. Then replace `PR_LINK` with `[#<pr>](<pr url>)`, commit "HISTORY: link #<pr>", and push. Don't merge it yourself: the orchestrator decides. Comment on the issue with the PR link and what you checked.
    > - **If another agent must do part of it first** (a design, a schema change): don't do their part. Open a new issue for it with `gh issue create`, labelled with their agent label, saying what you need and that it blocks #<n>. Comment on #<n> "Blocked by #<new>: <what you need>", add the `blocked` label, and stop.
    > - **If a designer is asked for a spec only:** post the design as a comment on the issue and close it (`gh issue close <n> --reason completed`). No PR.
    > - **If you need the user** (a product decision, applying a migration to production, a secret): comment the question on the issue, add `blocked`, and stop.

@@ -20,13 +20,15 @@ More people install the plugin and keep it, because pulling a card is fun and th
 
 1. **Look before you write.** Read the open issues, the board (`gh project item-list 4 --owner anthonylee2797`), the last 15 lines of `HISTORY.md` and the README. Open the live site (https://claude-code-cards.vercel.app) if a browser is available. Never write an issue that duplicates an open one.
 2. **Pick 1-3 ideas**, smallest valuable first. Prefer fixing what's broken or confusing over new features.
-3. **Write each issue** with `gh issue create`, one agent label each, plus `enhancement` or `bug`:
+3. **Write each issue** with `gh issue create`, one agent label each, plus `enhancement`, `bug` or `documentation`:
    - **Why**: one or two lines on the user problem.
    - **What**: what done looks like, concretely (pages, text, behavior).
    - **Done when**: checks the agent can run (build passes, page shows X at 375px, test covers Y).
    - **Out of scope**: what not to do.
    - Small enough for one PR in one sitting. If it needs two agents, make one issue per agent and say which blocks which ("Blocked by #n").
-4. **Put it on the board**: `gh project item-add 4 --owner anthonylee2797 --url <issue url>`, then set Status to **Ready**. Anything big, risky or unclear (new packs, payments, accounts, anything that changes what data is public) goes to **Backlog** with the `needs ideation` label instead: the user decides those.
+   - **No two Ready issues edit the same files.** If two ideas touch the same page or file, write the second one "Blocked by #<first>" and add `blocked`, or hold it for later.
+   - **Only work an agent can finish.** Agents can't take screenshots of the desktop app or terminal, sign in to accounts, add secrets or apply database changes to production. Work that needs those goes to Backlog with a note saying what the user has to do.
+4. **Put it on the board** with `bash .claude/skills/workday/board.sh move <issue number> Ready` (it adds the issue and sets the column). Anything big, risky or unclear (new packs, payments, accounts, anything that changes what data is public) goes to `Backlog` with the `needs ideation` label instead: the user decides those.
 5. **Report** the issues you wrote (number, title, label, column) and why these first.
 
 ## Rules

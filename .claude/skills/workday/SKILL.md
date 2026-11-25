@@ -13,7 +13,7 @@ You are the orchestrator for one workday. You don't build anything yourself: you
 ## Day limits (stop at the first one)
 
 - **5 rounds** (or the number the user gave).
-- **3 PRs waiting on the user** (In review and not web-lane): the user has enough to look at.
+- **3 PRs waiting on the user** (In review and not mergeable by **Merge** (C)): the user has enough to look at.
 - **Nothing workable**: no unblocked issue in Ready, even after the Product Manager ran.
 - **2 failed rounds** in a day (an agent errored, the build or tests failed twice, or it went out of its lane).
 
@@ -35,7 +35,7 @@ Repeat until a day limit hits. Each round does the first of these that applies: 
 
 **B. Web PR with design changes requested** (labelled `design-changes`): run `staff-engineer-web` (worktree) with "Address the design review on PR <url> (issue #<n>) as your instructions describe." Check the branch got new commits and a reply, then swap `design-changes` back to `design-review`. After **2** change rounds on one PR, stop the loop on it: remove both labels, comment that it's waiting on the user, and leave it In review.
 
-**C. Merge** (web lane only): a PR qualifies when every changed file is in `web/` or is `HISTORY.md`, it's from `staff-engineer-web` (with `Design: approved`) or from `principal-designer-web` (no review needed), and `gh pr checks <url>` is all green. Merge it with `gh pr merge <url> --merge --delete-branch`, confirm the issue closed, `board.sh move <n> Done`, and unblock anything waiting on it. Checks still pending: leave it for a later round. Checks failing: send it back to its author like **B**, with the failing check in the comment. Vercel deploys `main` to the live site, so this is the moment it ships. Anything outside `web/` (README and other docs included) waits on the user, whichever agent made it.
+**C. Merge** (web lane only): a PR qualifies when every changed file is in `web/` or is `HISTORY.md`, `gh pr checks <url>` is all green, and it's from `staff-engineer-web` with `Merge: auto` in its body or with `Design: approved`, or from `principal-designer-web` (no review needed). Merge it with `gh pr merge <url> --merge --delete-branch`, confirm the issue closed, `board.sh move <n> Done`, and unblock anything waiting on it. Checks still pending: leave it for a later round. Checks failing: send it back to its author like **B**, with the failing check in the comment. Vercel deploys `main` to the live site, so this is the moment it ships. Anything outside `web/` (README and other docs included) waits on the user, whichever agent made it.
 
 **D. New work from Ready:**
 
@@ -51,7 +51,7 @@ Repeat until a day limit hits. Each round does the first of these that applies: 
    > End with: the outcome (PR url, blocked by #n, needs the user, or closed with spec) and what you did not check.
 
 4. **Check what came back.** Don't trust the report on its own word:
-   - **PR:** `gh pr view <url> --json files,body,state` exists, says `Closes #<n>`, touches only that agent's files; then `board.sh move <n> "In review"`. Add any new issue the agent opened to Ready. From `staff-engineer-web`: add the `design-review` label (`gh pr edit <url> --add-label design-review`) so the next round reviews it. From `principal-designer-web`: it goes straight to **Merge**. Everything else (backend, plugin, anything with a migration) waits on the user.
+   - **PR:** `gh pr view <url> --json files,body,state` exists, says `Closes #<n>`, touches only that agent's files; then `board.sh move <n> "In review"`. Add any new issue the agent opened to Ready. From `staff-engineer-web`, follow the `Merge:` line in its body: `Merge: auto` goes straight to **Merge**, unless the diff touches `globals.css` or markup in a way that changes how a page looks, in which case treat it as design review; `Merge: design review` (or no line) gets the `design-review` label (`gh pr edit <url> --add-label design-review`) so the next round reviews it; `Merge: user (…)` waits on the user. From `principal-designer-web`: it goes straight to **Merge**. Everything else (backend, plugin, anything with a migration) waits on the user.
    - **Blocked:** the `blocked` label and the comment are there and the new issue exists; `board.sh move <n> Ready` and `board.sh move <new> Ready` (the new one goes first in the next rounds).
    - **Spec posted:** issue closed with the comment → `board.sh move <n> Done`; unblock whatever was waiting on it.
    - **Failed or out of lane:** comment on the issue what went wrong, move it back to Ready with `blocked`, count a failed round. Close any PR that went out of lane only after telling the user.
@@ -61,7 +61,7 @@ Repeat until a day limit hits. Each round does the first of these that applies: 
 
 Report to the user, short:
 - **Shipped (merged and live):** each web PR merged today (link, issue, one line, how many design rounds).
-- **Waiting on you:** each PR you need to review or approve (link, issue, why it's yours: backend, plugin, migration, or review loop ran out).
+- **Waiting on you:** each PR you need to review or approve (link, issue, why it's yours: backend, plugin, migration, the engineer's `Merge: user` reason, or review loop ran out).
 - **Blocked:** each issue and what it waits on (another issue or the user's answer, quoting the question).
 - **New on the board:** issues the Product Manager added and which column.
 - **Why the day stopped** and how many rounds ran.

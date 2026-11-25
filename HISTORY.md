@@ -27,3 +27,4 @@ Database changes also get a line in [`supabase/HISTORY.md`](supabase/HISTORY.md)
 | 2026-11-16 | web | `/` is a home page that sells and installs the plugin; `/series` lists packs (BETA NBA Pack, the old catalog at `/series/beta-nba`); `/u/<id>` shows packs, then only the owned cards (#32). | [#33](https://github.com/anthonylee2797/claude-code-cards/pull/33) |
 | 2026-11-16 | plugin | Desktop card: "Your collection" link moves to the top row and the stats row wraps whole pieces, so Hide no longer runs off the card (0.11.3). | [#34](https://github.com/anthonylee2797/claude-code-cards/pull/34) |
 | 2026-11-24 | web | Collection pages read pulls uncached, so `/u/<id>` and its pack page always show the same owned count. | [#34](https://github.com/anthonylee2797/claude-code-cards/pull/34) |
+| 2026-11-25 | docs | README: removed the two broken screenshot images (no real captures yet), see #36. | |

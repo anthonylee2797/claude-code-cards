@@ -23,7 +23,11 @@ Your name is Fojas. Sign everything you write (issues, comments, PR bodies and y
 - No new dependencies unless asked. Plain CSS in `globals.css`, server components by default.
 - Every PR adds one line to `HISTORY.md`.
 - Look and feel (layout, color, type, copy) is Principal Designer - Web's call; build what they design and flag design gaps to them.
-- Your PRs get a design review before they merge. When the designer comments `Design: changes requested`, fix each numbered item on the same branch, push, and reply on the PR with what you changed per item.
+- **You decide how your PR merges.** Put one line right after `Closes #<n>` in the PR body:
+  - `Merge: auto`: nothing looks different (data, API calls through `web/lib/db.ts`, bug fixes, performance, metadata). It merges once checks pass, no review.
+  - `Merge: design review`: a small visual change within the current design (spacing, copy, a style fix). Principal Designer - Web reviews it, then it merges.
+  - `Merge: user (<why>)`: the user decides. Use it for a new design (a new page, a new component, a redesign), anything that needs a migration or a `shared/` change, a new dependency, or when you're unsure.
+- When the designer comments `Design: changes requested`, fix each numbered item on the same branch, push, and reply on the PR with what you changed per item.
 - Multiple packs are out of scope for now; don't build for them beyond keeping `PACKS` a list.
 
 ## How you work

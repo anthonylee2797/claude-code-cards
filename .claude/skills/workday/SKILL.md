@@ -5,25 +5,26 @@ description: Start the team's workday. Runs the agent team (Product Manager, Sta
 
 You are the orchestrator for one workday. You don't build anything yourself: you keep the board moving, hand each issue to the agent whose label is on it, check what comes back, and report to the user at the end. Run it in a session of its own so the user's other work isn't in the way.
 
-- **Board:** https://github.com/users/anthonylee2797/projects/4 (columns Backlog, Ready, Working, Review, Done; an Agent field shows who has each issue, set by `board.sh move` from the agent label).
+- **Board:** https://github.com/users/anthonylee2797/projects/4 (columns Needs Anthony, Backlog, Ready, Working, Review, Done; an Agent field shows who has each issue, set by `board.sh move` from the agent label).
 - **Board script:** `bash .claude/skills/workday/board.sh list` and `bash .claude/skills/workday/board.sh move <issue> "<Column>"`. GitHub can take a few seconds to show a move in `list`; trust the `#n -> Column` line `move` prints.
+- **Needs Anthony:** whenever the user is the next step (a question, a PR only he may merge, a task only he can do), run `bash .claude/skills/workday/board.sh needs <issue> "<exactly what you need from him>"`. It moves the card to **Needs Anthony**, assigns him and comments `@anthonylee2797 needs you: …`. Leave out the text when the agent already posted that comment. Assigned means "needs Anthony": `move` to any other column clears it.
 - **Running an agent:** Agent tool with `subagent_type` set to the agent's name. If that fails with "Agent type … not found", run it as `general-purpose` and start the prompt with "First read `.claude/agents/<name>.md` and follow it as your instructions for this task." Say in the wrap-up that the fallback was used.
 - **Agents by label:** `agent: product-manager` → `product-manager`, `agent: staff-engineer-web` → `staff-engineer-web`, `agent: staff-engineer-backend` → `staff-engineer-backend`, `agent: designer-web` → `principal-designer-web`, `agent: designer-claude-code` → `principal-designer-claude-code`.
 
 ## Day limits (stop at the first one)
 
 - **5 rounds** (or the number the user gave).
-- **3 PRs waiting on the user** (Review and not mergeable by **Merge** (C)): the user has enough to look at.
+- **3 cards in Needs Anthony**: the user has enough to look at.
 - **Nothing workable**: no unblocked issue in Ready, even after the Product Manager ran.
 - **2 failed rounds** in a day (an agent errored, the build or tests failed twice, or it went out of its lane).
 
 ## 1. Standup
 
 1. `git fetch origin` and run `board.sh list`. Open issues that have an agent label but aren't on the board go to **Ready** (the user tagged them).
-2. Sync the board with GitHub: an issue whose PR is merged or that is closed → **Done**; Working with an open PR → **Review**; a PR closed without merging → back to **Ready** with a comment. Open PRs that don't close a board issue (no `Closes #n`) aren't the team's: list them in the standup as "not on the board" and leave them alone.
+2. Sync the board with GitHub: an issue whose PR is merged or that is closed → **Done**; Working with an open PR → **Review**; a PR closed without merging → back to **Ready** with a comment. A card the user dragged out of **Needs Anthony** keeps its new column; run `board.sh move` on it with that column to clear his assignment. Open PRs that don't close a board issue (no `Closes #n`) aren't the team's: list them in the standup as "not on the board" and leave them alone.
 3. Unblock: for each issue labelled `blocked`, if every issue it says it's "Blocked by" is closed, remove `blocked` (`gh issue edit <n> --remove-label blocked`) and comment that it's unblocked.
 4. If the user gave an idea, run `product-manager` first to write it up, at the top of Ready.
-5. Tell the user in a few lines: Ready, blocked (and why), PRs waiting on them. Then start working without waiting for an answer.
+5. Tell the user in a few lines: Ready, blocked (and why), what's in Needs Anthony. Then start working without waiting for an answer.
 
 ## 2. Rounds
 
@@ -33,9 +34,9 @@ Repeat until a day limit hits. Each round does the first of these that applies: 
 - `Design: approved` → remove `design-review`, go to **Merge** below.
 - `Design: changes requested` → swap `design-review` for `design-changes`.
 
-**B. Web PR with design changes requested** (labelled `design-changes`): run `staff-engineer-web` (worktree) with "Address the design review on PR <url> (issue #<n>) as your instructions describe." Check the branch got new commits and a reply, then swap `design-changes` back to `design-review`. After **2** change rounds on one PR, stop the loop on it: remove both labels, comment that it's waiting on the user, and leave it Review.
+**B. Web PR with design changes requested** (labelled `design-changes`): run `staff-engineer-web` (worktree) with "Address the design review on PR <url> (issue #<n>) as your instructions describe." Check the branch got new commits and a reply, then swap `design-changes` back to `design-review`. After **2** change rounds on one PR, stop the loop on it: remove both labels, and `board.sh needs <n> "design review ran out after 2 rounds on <PR url>: decide or merge"`.
 
-**C. Merge** (web lane only): a PR qualifies when every changed file is in `web/` or is `HISTORY.md`, `gh pr checks <url>` is all green, and it's from `staff-engineer-web` with `Merge: auto` in its body or with `Design: approved`, or from `principal-designer-web` (no review needed). Merge it with `gh pr merge <url> --merge --delete-branch`, confirm the issue closed, `board.sh move <n> Done`, and unblock anything waiting on it. Checks still pending: leave it for a later round. Checks failing: send it back to its author like **B**, with the failing check in the comment. Vercel deploys `main` to the live site, so this is the moment it ships. Anything outside `web/` (README and other docs included) waits on the user, whichever agent made it.
+**C. Merge** (web lane only): a PR qualifies when every changed file is in `web/` or is `HISTORY.md`, `gh pr checks <url>` is all green, and it's from `staff-engineer-web` with `Merge: auto` in its body or with `Design: approved`, or from `principal-designer-web` (no review needed). Merge it with `gh pr merge <url> --merge --delete-branch`, confirm the issue closed, `board.sh move <n> Done`, and unblock anything waiting on it. Checks still pending: leave it for a later round. Checks failing: send it back to its author like **B**, with the failing check in the comment. Vercel deploys `main` to the live site, so this is the moment it ships. Anything outside `web/` (README and other docs included) goes to the user with `board.sh needs <n> "review and merge <PR url>: <why it's his>"`, whichever agent made it.
 
 **D. New work from Ready:**
 
@@ -47,12 +48,13 @@ Repeat until a day limit hits. Each round does the first of these that applies: 
    > - **If you can finish it:** your worktree may start on another branch, so create `agent/<n>-<short-slug>` from `origin/main` (`git fetch origin && git switch -c agent/<n>-<slug> origin/main`). Do the work, run your checks, add the HISTORY.md line with `PR_LINK` in its PR column, push, and open a PR whose body starts with `Closes #<n>` and ends with the Claude Code attribution line. Then replace `PR_LINK` with `[#<pr>](<pr url>)`, commit "HISTORY: link #<pr>", and push. Don't merge it yourself: the orchestrator decides. Comment on the issue with the PR link and what you checked.
    > - **If another agent must do part of it first** (a design, a schema change): don't do their part. Open a new issue for it with `gh issue create`, labelled with their agent label, saying what you need and that it blocks #<n>. Comment on #<n> "Blocked by #<new>: <what you need>", add the `blocked` label, and stop.
    > - **If a designer is asked for a spec only:** post the design as a comment on the issue and close it (`gh issue close <n> --reason completed`). No PR.
-   > - **If you need the user** (a product decision, applying a migration to production, a secret): comment the question on the issue, add `blocked`, and stop.
+   > - **If you need the user** (a product decision, applying a migration to production, a secret, a task only he can do such as a screenshot): comment on the issue starting with `@anthonylee2797 needs you:` and exactly what you need, add `blocked`, and stop.
    > End with: the outcome (PR url, blocked by #n, needs the user, or closed with spec) and what you did not check.
 
 4. **Check what came back.** Don't trust the report on its own word:
-   - **PR:** `gh pr view <url> --json files,body,state` exists, says `Closes #<n>`, touches only that agent's files; then `board.sh move <n> Review`. Add any new issue the agent opened to Ready. From `staff-engineer-web`, follow the `Merge:` line in its body: `Merge: auto` goes straight to **Merge**, unless the diff touches `globals.css` or markup in a way that changes how a page looks, in which case treat it as design review; `Merge: design review` (or no line) gets the `design-review` label (`gh pr edit <url> --add-label design-review`) so the next round reviews it; `Merge: user (…)` waits on the user. From `principal-designer-web`: it goes straight to **Merge**. Everything else (backend, plugin, anything with a migration) waits on the user.
+   - **PR:** `gh pr view <url> --json files,body,state` exists, says `Closes #<n>`, touches only that agent's files; then `board.sh move <n> Review`. Add any new issue the agent opened to Ready. From `staff-engineer-web`, follow the `Merge:` line in its body: `Merge: auto` goes straight to **Merge**, unless the diff touches `globals.css` or markup in a way that changes how a page looks, in which case treat it as design review; `Merge: design review` (or no line) gets the `design-review` label (`gh pr edit <url> --add-label design-review`) so the next round reviews it; `Merge: user (…)` goes to the user (`board.sh needs`, quoting the reason). From `principal-designer-web`: it goes straight to **Merge**. Everything else (backend, plugin, anything with a migration) goes to the user with `board.sh needs <n> "review and merge <PR url>: <why>"` instead of Review.
    - **Blocked:** the `blocked` label and the comment are there and the new issue exists; `board.sh move <n> Ready` and `board.sh move <new> Ready` (the new one goes first in the next rounds).
+   - **Needs the user:** the `@anthonylee2797 needs you:` comment is there → `board.sh needs <n>`.
    - **Spec posted:** issue closed with the comment → `board.sh move <n> Done`; unblock whatever was waiting on it.
    - **Failed or out of lane:** comment on the issue what went wrong, move it back to Ready with `blocked`, count a failed round. Close any PR that went out of lane only after telling the user.
 5. One issue at a time. Never two agents in the same round.
@@ -61,7 +63,7 @@ Repeat until a day limit hits. Each round does the first of these that applies: 
 
 Report to the user, short:
 - **Shipped (merged and live):** each web PR merged today (link, issue, one line, how many design rounds).
-- **Waiting on you:** each PR you need to review or approve (link, issue, why it's yours: backend, plugin, migration, the engineer's `Merge: user` reason, or review loop ran out).
+- **Needs you:** every card in Needs Anthony (link and the one thing needed: approve a PR and why it's his, answer a question quoting it, or do a task).
 - **Blocked:** each issue and what it waits on (another issue or the user's answer, quoting the question).
 - **New on the board:** issues the Product Manager added and which column.
 - **Why the day stopped** and how many rounds ran.

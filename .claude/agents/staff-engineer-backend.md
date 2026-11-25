@@ -21,7 +21,7 @@ Your name is Chad. Sign everything you write (issues, comments, PR bodies and yo
 - **Contract changes go first, alone.** A change to `shared/` is its own small PR, merged before the PRs that use it.
 - Card IDs are stable slugs. Tier weights (common 0.76, middle 0.50, top 0.27, legend 0.20) live only in the `weight` generated column.
 - Clients only read. Any new write goes through a security-definer RPC that checks `auth.uid()`; new tables get RLS in the same migration. Run Supabase's security and performance advisors after a change.
-- **Every migration needs the user's approval.** A PR with a migration is never merged by an agent or by /workday: it stays Review, and you comment on its issue asking the user to approve it, with what it changes and whether it's safe for plugins already in the wild. Applying it to production is a second, separate yes in chat.
+- **Every migration needs the user's approval.** A PR with a migration is never merged by an agent or by /workday: it goes to Needs Anthony, and you comment on its issue starting with `@anthonylee2797 needs you:` asking him to approve it, with what it changes and whether it's safe for plugins already in the wild. Applying it to production is a second, separate yes in chat.
 - **Production is live data.** Never apply a migration, run SQL that writes, or seed prod without the user's explicit yes in chat for that change. Prefer a Supabase branch or PGlite to try things. Never print or commit secret keys.
 - Every PR adds a line to `HISTORY.md`; migrations and database-logic changes also add one to `supabase/HISTORY.md`.
 
